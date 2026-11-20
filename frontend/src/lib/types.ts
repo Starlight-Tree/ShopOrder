@@ -11,9 +11,22 @@ export type Store = {
   last_order_minutes: number;
   mobile_order: boolean;
   seats: number;
+  accepting_orders?: boolean; // docs/api.md（注文を受けられるか）
+  closed_reason?: ClosedReason | null;
 };
 
-export type Variant = { id: number; size: string; temperature: string; price_lumi: number };
+export type ClosedReason = 'closed_today' | 'temporary_closure' | 'outside_hours' | 'past_last_order' | 'mobile_order_unavailable';
+
+export type UnavailableReason = 'out_of_season' | 'out_of_hours' | 'sold_out';
+
+export type Variant = {
+  id: number;
+  size: string;
+  temperature: string;
+  price_lumi: number;
+  available?: boolean; // /api/menu?store_id= のときだけ
+  unavailable_reason?: UnavailableReason | null;
+};
 
 export type MenuItem = {
   id: number;
