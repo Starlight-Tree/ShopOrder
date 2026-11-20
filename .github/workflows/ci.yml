@@ -1,0 +1,129 @@
+name: CI
+
+# テストとビルドだけを行う。デプロイは含まない。外部の API（Gemini・決済など）は呼ばない。
+# アクションは、改ざんされたタグを掴まないよう、コミット SHA で固定している（JobNavi の ci.yml と同じ。コメントは対応するタグ）。
+# Python と Node の版は、.python-version と .node-version から読む（scripts/check-versions.sh が各ファイルとの整合を確かめる）。
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests (Python, Postgres 17)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # DB を使うテストのための、使い捨ての Postgres。テスト専用のダミーの認証情報で、秘密情報は入っていない。
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      # backend/tests/conftest.py は、この URL で接続して、テスト用の DB を作り直す。無いと DB のテストは静かにスキップされる。
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false  # 後続のステップで git の認証は使わない
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.in
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.in
+      - name: Run pytest
+        run: |
+          set -o pipefail
+          python -m pytest -q -rs | tee pytest.log
+      # TEST_DATABASE_URL の綴りがずれると、テストはスキップされたまま green になる。スキップが 1 件でもあれば落とす。
+      - name: No test may be skipped
+        run: |
+          if grep -qiE '(^|[^a-z])skipped' pytest.log; then
+            echo "スキップされたテストがある。pytest.log の SKIPPED の行で理由を確かめる" >&2
+            exit 1
+          fi
+
+  backend-image:
+    name: Backend image builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Build the image (not pushed)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: backend
+          push: false
+          load: true
+          tags: oasis-api:ci
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+      # DB が無いと API は起動しない（接続プールを開くため）ので、起動はしない。固定した依存がイメージの中で読み込めることだけ確かめる。
+      - name: Import the app inside the image
+        run: docker run --rm oasis-api:ci python -c "import app.main"
+      # docker-compose.yml の構文と、環境変数の既定値を確かめる（起動はしない。.env は不要）
+      - name: Validate docker-compose.yml
+        run: docker compose config --quiet
+
+  frontend:
+    name: Frontend (Next.js) tests, build and type-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Run unit tests
+        run: npm test
+      - name: Build
+        run: npm run build
+      # typecheck は build の後（.next/types を使う）
+      - name: Type-check
+        run: npm run typecheck
+
+  versions:
+    name: Version check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      # Python と Node の版が、Dockerfile・Compose・engines・CLAUDE.md・この CI で揃っているか
+      - name: Python and Node versions agree
+        run: scripts/check-versions.sh
