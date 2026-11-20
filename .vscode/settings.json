@@ -1,0 +1,6 @@
+{
+  "containers.containers.groupBy": "Label",
+  "containers.containers.groupByLabel": "local.ui.group",
+  "containers.containers.label": "ContainerName",
+  "containers.containers.description": ["Status"]
+}

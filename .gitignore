@@ -1,0 +1,41 @@
+# 依存・ビルド生成物
+node_modules/
+.next/
+tsconfig.tsbuildinfo
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+
+# 認証情報・環境変数
+.env
+.env.*
+!.env.example
+
+# 動作確認のスクリーンショットなど（拡張子では無視しない）
+.playwright-mcp/
+
+# OS
+.DS_Store
+
+# DB のバックアップ（個人情報を含みうる）。Git に入れない
+backups/
+*.dump
+
+# 画像の保存先の開発用フォルダー（ローカル保存のとき）
+.dev-media/
+
+# Claude Code のローカル設定（個人用。コミットしない）
+.claude/settings.local.json
+.claude/settings.json.bak-*
+
+# ローカルの作業メモ・指示書の置き場（個人用。他のリポジトリから写す。コミットしない）
+/.dev-local/
+
+# E2E（e2e/）の生成物
+e2e/node_modules/
+e2e/test-results/
+e2e/playwright-report/
+
+# Next.js が生成する型の宣言
+next-env.d.ts
