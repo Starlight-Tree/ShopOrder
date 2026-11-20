@@ -20,7 +20,7 @@
 | 番号 | 題 | 状態 |
 |---|---|---|
 | [0001](0001-world-and-currency.md) | 世界観は既存の資料を正とし、通貨はルミにする | 決定 |
-| [0002](0002-stack-based-on-jobnavi.md) | スタックは JobNavi を土台にし、チャットの部品だけ DocuNavi から写す | 提案 |
-| [0003](0003-chat-never-confirms-orders.md) | AI は注文を確定せず、確定は画面の確定ボタンだけにする | 提案 |
-| [0004](0004-inventory-ledger-and-reservation.md) | 在庫は台帳 + 残高で持ち、確保は注文の確定時に条件付き UPDATE で行う | 提案 |
-| [0005](0005-mock-first-providers.md) | 決済・配達・通知・LLM は模擬を既定にし、差し替え口を残す | 提案 |
+| [0002](0002-stack-based-on-jobnavi.md) | スタックは JobNavi を土台にし、チャットの部品だけ DocuNavi から写す | 決定 |
+| [0003](0003-chat-never-confirms-orders.md) | AI は注文を確定せず、確定は画面の確定ボタンだけにする | 決定 |
+| [0004](0004-inventory-ledger-and-reservation.md) | 在庫は台帳 + 残高で持ち、確保は注文の確定時に条件付き UPDATE で行う | 決定 |
+| [0005](0005-mock-first-providers.md) | 決済・配達・通知・LLM は模擬を既定にし、差し替え口を残す | 決定 |
