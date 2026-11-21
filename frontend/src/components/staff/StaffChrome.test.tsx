@@ -21,7 +21,7 @@ beforeEach(() => {
 });
 
 describe('StaffHeader', () => {
-  it('店名・氏名・ロールと、ボード・在庫・ログアウトを出す', () => {
+  it('店名・氏名・ロールと、ボード・配車・在庫・ログアウトを出す', () => {
     render(<StaffHeader staff={staffUser({ name: 'ミナ・ハーシム', role: 'staff' })} storeName="居住区本店" logoutAction={vi.fn(async () => {})} />);
     expect(screen.getByText('居住区本店')).toBeInTheDocument();
     expect(screen.getByText('ミナ・ハーシム')).toBeInTheDocument();
@@ -29,6 +29,7 @@ describe('StaffHeader', () => {
     const nav = screen.getByRole('navigation', { name: 'スタッフメニュー' });
     expect(within(nav).getAllByRole('link').map((a) => [a.textContent, a.getAttribute('href')])).toEqual([
       ['ボード', '/staff'],
+      ['配車', '/staff/dispatch'],
       ['在庫', '/staff/stock'],
     ]);
     expect(screen.getByRole('button', { name: 'ログアウト' })).toBeInTheDocument();
@@ -45,6 +46,14 @@ describe('StaffHeader', () => {
     render(<StaffHeader staff={staffUser()} storeName="居住区本店" logoutAction={vi.fn(async () => {})} />);
     expect(screen.getByRole('link', { name: '在庫' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'ボード' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('配車ボードでは「配車」だけが現在のページ（調理ボードの「ボード」は違う）', () => {
+    nav.pathname = '/staff/dispatch';
+    render(<StaffHeader staff={staffUser()} storeName="居住区本店" logoutAction={vi.fn(async () => {})} />);
+    expect(screen.getByRole('link', { name: '配車' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'ボード' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('link', { name: '在庫' })).not.toHaveAttribute('aria-current');
   });
 
   it('ログアウトのフォームは、渡された Server Action を呼ぶ', async () => {

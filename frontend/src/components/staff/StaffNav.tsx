@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 
 const LINKS = [
   { href: '/staff', label: 'ボード', match: (p: string) => p === '/staff' },
+  { href: '/staff/dispatch', label: '配車', match: (p: string) => p === '/staff/dispatch' || p.startsWith('/staff/dispatch/') },
   { href: '/staff/stock', label: '在庫', match: (p: string) => p === '/staff/stock' || p.startsWith('/staff/stock/') },
 ] as const;
 

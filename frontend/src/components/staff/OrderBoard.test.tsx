@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { StaffOrder } from '../../lib/contract';
+import { dispatchOrder } from '../../lib/staff/dispatch-fixtures';
 import { NOW, order } from '../../lib/staff/test-fixtures';
 import type { TransitionInput, TransitionResult } from '../../lib/staff/types';
 import { OrderBoard } from './OrderBoard';
@@ -219,5 +221,78 @@ describe('店の選択（店長）と自動更新', () => {
   it('更新の間隔を画面に書く（5 秒）', () => {
     renderBoard();
     expect(screen.getByText(/5 秒ごとに自動で更新/)).toBeInTheDocument();
+  });
+});
+
+describe('宅配の注文（調理ボードに出る分）', () => {
+  // 調理ボードの API は、宅配の注文にも delivery を付ける（contract.ts の StaffOrder は店頭だけの型なので、形を合わせて渡す）
+  const deliveryOrder = (over: Parameters<typeof dispatchOrder>[0] = {}) => dispatchOrder({ placed_at: '2026-11-21T02:54:00Z', ...over }) as unknown as StaffOrder;
+
+  it('「宅配」の印・配達の状態・枠の時刻を出す。店頭の注文には出さない', () => {
+    renderBoard({ orders: [deliveryOrder({ public_id: 'A0000001', pickup_no: 1 }), order({ public_id: 'A0000002', pickup_no: 2 })] });
+    const d = screen.getByRole('article', { name: '受け取り番号 1' });
+    expect(within(d).getByText('宅配')).toBeInTheDocument();
+    expect(within(d).getByText('割り当て待ち', { selector: '.tag' })).toBeInTheDocument();
+    expect(within(d).getByText('枠 13:00〜13:30')).toBeInTheDocument();
+    const p = screen.getByRole('article', { name: '受け取り番号 2' });
+    expect(within(p).queryByText('宅配')).toBeNull();
+    expect(within(p).queryByText(/^枠 /)).toBeNull();
+  });
+
+  it('枠は店のローカル時刻（utcOffsetHours）で出す。別の日の枠は月/日つき', () => {
+    renderBoard({
+      utcOffsetHours: 0,
+      orders: [
+        deliveryOrder({ public_id: 'A0000001', pickup_no: 1 }),
+        deliveryOrder({ public_id: 'A0000002', pickup_no: 2, delivery: { slot: { id: 42, starts_at: '2026-11-22T04:00:00Z', ends_at: '2026-11-22T04:30:00Z' } } }),
+      ],
+    });
+    expect(within(screen.getByRole('article', { name: '受け取り番号 1' })).getByText('枠 04:00〜04:30')).toBeInTheDocument();
+    expect(within(screen.getByRole('article', { name: '受け取り番号 2' })).getByText('枠 11/22 04:00〜04:30')).toBeInTheDocument();
+  });
+
+  it('宅配の注文に、渡し済み（complete）の操作を出さない。API が allowed_actions から外すので、画面は列から決めない', () => {
+    // 準備完了の列にいる宅配の注文: allowed_actions は ['assign', 'cancel']（complete が無い）。assign は配車ボードの操作なので、ここでは出さない
+    renderBoard({ orders: [deliveryOrder({ status: 'ready', allowed_actions: ['assign', 'cancel'] })] });
+    const card = screen.getByRole('article', { name: '受け取り番号 12' });
+    expect(within(card).getAllByRole('button').map((b) => b.textContent)).toEqual(['取消し']);
+    expect(within(card).queryByRole('button', { name: '渡した' })).toBeNull();
+    expect(within(card).getByRole('link', { name: '配車で割り当てる' })).toHaveAttribute('href', '/staff/dispatch');
+  });
+
+  it('準備完了より前（受付待ちなど）の宅配の注文も、同じ操作（受ける・調理開始など）が出る。配車のリンクは ready だけ', () => {
+    renderBoard({ orders: [deliveryOrder({ status: 'paid', allowed_actions: ['accept', 'cancel'], delivery: { status: 'pending' } })] });
+    const card = screen.getByRole('article', { name: '受け取り番号 12' });
+    expect(within(card).getAllByRole('button').map((b) => b.textContent)).toEqual(['受ける', '取消し']);
+    expect(within(card).queryByRole('link')).toBeNull();
+  });
+
+  it('宅配の注文は、「注文から 10 分超」で強調しない（枠の時刻で動くため）。店頭の注文は従来どおり', () => {
+    renderBoard({
+      orders: [
+        deliveryOrder({ public_id: 'A0000001', pickup_no: 1, placed_at: '2026-11-21T01:00:00Z' }), // 2 時間以上前
+        order({ public_id: 'A0000002', pickup_no: 2, placed_at: '2026-11-21T01:00:00Z' }),
+      ],
+    });
+    const d = screen.getByRole('article', { name: '受け取り番号 1' });
+    expect(within(d).queryByText('10 分超')).toBeNull();
+    expect(d.closest('li')).not.toHaveClass('is-overdue');
+    expect(within(d).getByText('2 時間 5 分')).toBeInTheDocument(); // 経過時間は、そのまま出す
+    expect(screen.getByRole('article', { name: '受け取り番号 2' }).closest('li')).toHaveClass('is-overdue');
+  });
+
+  it('宅配の注文の取消しも、理由つきで transition を呼ぶ', async () => {
+    const onTransition = renderBoard({ orders: [deliveryOrder({ status: 'ready', allowed_actions: ['assign', 'cancel'] })] });
+    fireEvent.click(screen.getByRole('button', { name: '取消し' }));
+    fireEvent.change(screen.getByLabelText('取消しの理由（必須）'), { target: { value: '住所が届けられない' } });
+    fireEvent.click(screen.getByRole('button', { name: '取消しを確定する' }));
+    await waitFor(() => expect(onTransition).toHaveBeenCalledWith({ publicId: 'K7M2Q9XD', action: 'cancel', reason: '住所が届けられない' }));
+  });
+
+  it('delivery の形が違う注文は、印を出さず、店頭の注文として描く（落とさない）', () => {
+    const broken = { ...order(), delivery: { status: 'pending' } } as unknown as StaffOrder;
+    renderBoard({ orders: [broken] });
+    expect(screen.getByRole('article', { name: '受け取り番号 12' })).toBeInTheDocument();
+    expect(screen.queryByText('宅配')).toBeNull();
   });
 });

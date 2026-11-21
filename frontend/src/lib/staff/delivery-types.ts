@@ -85,3 +85,6 @@ export type CourierActionInput = { publicId: string; action: CourierAction; pin?
 export type DeliveryOutcome =
   | { ok: true; message: string }
   | { ok: false; kind: FailureKind; message: string; refresh: boolean };
+
+/** 配車ボードの取消し（既存の transition の cancel）。理由は必須（performTransition が確かめる） */
+export type DispatchCancelInput = { publicId: string; reason?: string };

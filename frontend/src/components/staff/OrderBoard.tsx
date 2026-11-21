@@ -17,6 +17,8 @@ type Props = {
   errorMessage?: string | null;
   /** サーバーの現在（ISO 8601）。経過時間の基準 */
   now: string;
+  /** 宅配の枠の時刻を出すための、店のローカル時刻の UTC からの差（時間。LOCAL_UTC_OFFSET_HOURS）。省略は既定（9） */
+  utcOffsetHours?: number;
   /** 店の選択を出す（全店の店長だけ） */
   stores: readonly Pick<Store, 'id' | 'name'>[] | null;
   showStoreSelect: boolean;
@@ -27,7 +29,7 @@ type Props = {
 type Message = { kind: 'ok' | 'error'; text: string };
 
 /** 調理ボード: 受付待ち・受付済み・調理中・準備完了の 4 列。5 秒ごとに、サーバーの描画を取り直す */
-export function OrderBoard({ orders, errorMessage, now, stores, showStoreSelect, selectedStoreId, onTransition }: Props) {
+export function OrderBoard({ orders, errorMessage, now, utcOffsetHours, stores, showStoreSelect, selectedStoreId, onTransition }: Props) {
   const router = useRouter();
   const refresh = useAutoRefresh();
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -98,7 +100,7 @@ export function OrderBoard({ orders, errorMessage, now, stores, showStoreSelect,
                 ) : (
                   <ul className="st-card-list">
                     {list.map((order) => (
-                      <OrderCard key={order.public_id} order={order} now={now} busy={pendingId === order.public_id} onAct={act} />
+                      <OrderCard key={order.public_id} order={order} now={now} utcOffsetHours={utcOffsetHours} busy={pendingId === order.public_id} onAct={act} />
                     ))}
                   </ul>
                 )}

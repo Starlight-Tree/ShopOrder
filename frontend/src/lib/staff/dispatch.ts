@@ -1,6 +1,6 @@
 // 配車ボードの、画面に依らない部分: 列への振り分け・時刻の文・配達員の選択肢・ラベル。
 import { formatLumi } from '../format';
-import type { Courier, DispatchOrder, DispatchSuggestion, FailureReason, SlotRef, Zone } from './delivery-types';
+import type { Courier, DispatchOrder, DispatchSuggestion, FailureReason, SlotRef, StaffDelivery, Zone } from './delivery-types';
 
 /** 配車ボードに出す注文の状態（API の `status` の既定と同じ） */
 export const DISPATCH_STATUSES = ['ready', 'assigned', 'picked_up', 'delivering', 'delivery_failed'] as const;
@@ -117,4 +117,43 @@ export function courierChoices(order: Pick<DispatchOrder, 'store'>, couriers: re
 export function zoneSummary(zone: Pick<Zone, 'fee_lumi' | 'free_over_lumi' | 'min_order_lumi' | 'base_minutes'>): string {
   const free = zone.free_over_lumi === null ? '' : `・${formatLumi(zone.free_over_lumi)}以上で無料`;
   return `送料 ${formatLumi(zone.fee_lumi)}${free}・最低注文 ${formatLumi(zone.min_order_lumi)}・基準 ${zone.base_minutes} 分`;
+}
+
+// ---- 宅配の情報の読み取り・操作の出し分け（調理ボードと配車ボードで使う） ----
+
+/**
+ * 注文から、宅配の情報を読む。調理ボードの注文は contract.ts の StaffOrder（店頭の型）なので、型に頼らず、実行時に形を確かめる。
+ * 宅配でない（delivery が無い・null）・形が違うものは null。
+ */
+export function deliveryOf(order: object): StaffDelivery | null {
+  const d = (order as { delivery?: unknown }).delivery;
+  if (typeof d !== 'object' || d === null) return null;
+  const { status, slot, attempt } = d as Partial<StaffDelivery>;
+  if (typeof status !== 'string' || typeof attempt !== 'number') return null;
+  if (typeof slot?.starts_at !== 'string' || typeof slot.ends_at !== 'string') return null;
+  return d as StaffDelivery;
+}
+
+/** 枠の文。時刻が読めなければ「時刻不明」（slotLabel は、読めないと "〜" だけを返すので、画面ではこちらを使う） */
+export function slotText(slot: Pick<SlotRef, 'starts_at' | 'ends_at'>, now: string, offsetHours: number): string {
+  return formatClock(slot.starts_at, offsetHours) === '' ? '時刻不明' : slotLabel(slot, now, offsetHours);
+}
+
+/** 模擬で進められる注文の状態（これ以外は API が 409 invalid_transition にする） */
+export const MOCK_ADVANCE_STATUSES = ['ready', 'assigned', 'picked_up', 'delivering'] as const;
+
+/** 「模擬で 1 つ進める」を出すか。配達の提供者が mock で、進められる状態のときだけ（API は mock 以外を 409 mock_only にする） */
+export function canMockAdvance(provider: string, status: string): boolean {
+  return provider === 'mock' && (MOCK_ADVANCE_STATUSES as readonly string[]).includes(status);
+}
+
+/** 配達の回数の文。初回は null。再配達（2 回目以降）は "配達 2 回目（再配達）" */
+export function attemptLabel(attempt: number): string | null {
+  return attempt > 1 ? `配達 ${attempt} 回目（再配達）` : null;
+}
+
+/** 割り当ての選択の初期値（select の value）。提案の配達員が選べる中にいればその ID、いなければ空 */
+export function defaultCourierId(order: Pick<DispatchOrder, 'suggestion'>, choices: readonly CourierChoice[]): string {
+  const id = order.suggestion?.courier_id;
+  return id !== undefined && choices.some((c) => c.id === id && !c.disabled) ? String(id) : '';
 }
