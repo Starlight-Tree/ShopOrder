@@ -45,7 +45,7 @@ class Api:
 
     def make_staff(self, role: str, store_code: str | None) -> dict:
         """テスト専用のスタッフを作り、ログインした Bearer ヘッダーを返す。"""
-        email = f"{role}-{store_code}-{len(self._tokens)}@oasis-cafe.example"
+        email = f"test-{role}-{store_code}-{len(self._tokens)}@oasis-cafe.example"  # デモのスタッフ（courier-…・staff-…）と重ならない名前
         with connect(self.url) as conn:
             conn.execute(
                 "INSERT INTO staff_accounts (store_id, role, name, email, password_hash) VALUES (%s, %s, 'テスト用', %s, %s)",
