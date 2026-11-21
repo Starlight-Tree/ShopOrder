@@ -11,7 +11,7 @@
 **初回（ホスト → コンテナ）**
 
 1. VS Code の「Reopen in Container」。`initializeCommand` が、ボリューム `shoporder-claude-config`（無ければ）とプロキシを作る。
-2. ボリュームは空で始まる。ホストの `settings.json`・`CLAUDE.md`・履歴だけを写す（認証情報と `.claude.json` は写さない。JobNavi と同じ方針）。そのあと `~/.claude/bin/sync-shared-rules.sh --apply` で共通ルールを入れ、コンテナの中で Claude Code にログインする。**写さないと、コンテナの中の Claude に、日本語での応答・承認・バックアップの規則が効かない。**
+2. ボリュームは空で始まる。コンテナ用の `CLAUDE.md`（先頭に `@shared-rules.md`。JobNavi と同じ形）と、ホストの `settings.json` からホスト専用の項目（Chrome のフック・`mcp__claude-in-chrome__*` の拒否）と `modelSettings` を除いた写しだけを置く（認証情報と `.claude.json` は写さない）。そのあと `~/.claude/bin/sync-shared-rules.sh --apply` で共通ルールを入れ、コンテナの中で Claude Code にログインする（ログインは人が行う）。**置かないと、コンテナの中の Claude に、日本語での応答・承認・バックアップの規則が効かない。**
 3. コンテナの中で、1 回だけ: `cd backend && python -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.in`、`cd frontend && npm ci`（どちらも専用ボリュームに入る。ホストの作業ツリーには書かない）。
 
 **コンテナの中で行う**

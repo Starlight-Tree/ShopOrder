@@ -11,7 +11,7 @@ P0・P1 は済み。**P2（宅配）・P3（チャット）・P4（分析）は�
 
 - **画面が未着手:** 宅配（顧客の住所・時間枠・受け取り PIN、配達員・配車。API クライアントまで）、チャット（模擬モデルのみ。評価は `evals/`）、宅配の分析。
 - **未着手:** P5 の通知・連絡スレッド・個別の顧客の画面（顧客の集計〔RFM・コホート〕は P4 に入っている）。P6（実 LLM・実決済・公開先）は見送り。
-- **環境:** devcontainer は未作成。Git のリモートは GitHub の `Starlight-Tree/ShopOrder`（公開。`main` のみ）。E2E（Playwright）は未導入。ブラウザーでの目視は一部が未実施（[docs/analytics.md](docs/analytics.md) の「未確認」）。
+- **環境:** 開発は開発コンテナ（`.devcontainer/`。手順は [docs/development.md](docs/development.md)）。Git のリモートは GitHub の `Starlight-Tree/ShopOrder`（公開。`main` のみ）。E2E（Playwright）は未導入。ブラウザーでの目視は一部が未実施（[docs/analytics.md](docs/analytics.md) の「未確認」）。
 
 ## よく使うコマンド
 
