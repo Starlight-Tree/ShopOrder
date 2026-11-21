@@ -402,10 +402,10 @@ class CourierDelivery(BaseModel):
 
 
 class AddressBody(_Body):
-    label: Annotated[SafeText, StringConstraints(strip_whitespace=True, min_length=1, max_length=20)]
+    label: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20), AfterValidator(_no_control_chars)]
     area_code: int = Field(ge=1, le=99)
-    line: Annotated[SafeText, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
-    note: Annotated[SafeText, StringConstraints(strip_whitespace=True, max_length=100)] | None = None
+    line: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100), AfterValidator(_no_control_chars)]
+    note: Annotated[str, StringConstraints(strip_whitespace=True, max_length=100), AfterValidator(_no_control_chars)] | None = None
 
 
 class AssignBody(_Body):

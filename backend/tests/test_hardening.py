@@ -100,6 +100,13 @@ def test_control_characters_are_rejected_with_422_not_500(shop, client, bad):
     assert r.status_code == 422
 
 
+@pytest.mark.parametrize("bad", ["a\u0000b", "x\ud800y", "tab\x07bell"])
+@pytest.mark.parametrize("field", ["label", "line", "note"])
+def test_address_text_rejects_control_characters_with_422_not_500(shop, client, bad, field):
+    body = {"label": "自宅", "area_code": 1, "line": "アルカ市居住区1-4-2", "note": None, field: bad}
+    r = _post_raw(client, "/api/addresses", body, shop.user())
+    assert r.status_code == 422
+
 def test_expire_stale_releases_each_order_in_its_own_transaction(shop, client):
     """複数の期限切れを戻しても、在庫と台帳が合う（1 注文 1 トランザクション）。期限切れの戻しは、失敗しても呼び出し元に例外を出さない。"""
     v = shop.variant("americano", "M", "hot")
