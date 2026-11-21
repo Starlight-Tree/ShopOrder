@@ -14,10 +14,11 @@ RUN export DEBIAN_FRONTEND=noninteractive \
     && docker compose version \
     && psql --version
 
-# E2E（frontend/e2e/、Playwright）の Chromium に要るライブラリーとフォント（`playwright install-deps chromium` が入れるものと同じ。
-# 一覧の出どころは DocuNavi の .devcontainer/Dockerfile。ヘッドレスなので xvfb は入れない。2026-11-22）。
-# Chromium 本体は、ここでは入れない。コンテナの作成後に、frontend で `npx playwright install chromium` を流す（~/.cache/ms-playwright に入る。
-# 作り直すと消えるので、そのたびに取得する。約 120 MB）。版は frontend/package.json の @playwright/test（1.64.1）に合う。
+# E2E（frontend/e2e/、Playwright）の Chromium に要るライブラリーとフォント。一覧は DocuNavi の .devcontainer/Dockerfile から写し、
+# ヘッドレスなので要らない xvfb と、xfonts-scalable・fonts-tlwg-loma-otf を除いた（`playwright install-deps chromium` との照合はしていない）。
+# 版（@playwright/test 1.64.1）を上げるときは、足りないライブラリーが無いか、Chromium の起動で確かめる。
+# Chromium 本体は、ここでは入れない。コンテナの作成後に、frontend で `npx playwright install chromium` を流す
+# （~/.cache/ms-playwright に入る。作り直すと消えるので、そのたびに取得する。手順は docs/development.md）。2026-11-22
 RUN export DEBIAN_FRONTEND=noninteractive \
     && apt-get update -y \
     && apt-get install -y --no-install-recommends \
