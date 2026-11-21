@@ -1,0 +1,195 @@
+/*
+ * スタッフ用の画面（/staff 以下）。顧客の画面とトークン（--bg / --surface / --border / --text / --muted / --primary / --tag-* / --radius）を共有し、
+ * 業務用に密度を上げる。すべて .staff-root の中だけに効く（顧客の画面へ漏らさない）。ライト・ダークは globals.css と同じ prefers-color-scheme。
+ * 色の組み合わせは、本文 4.5:1 以上・枠や状態の表示 3:1 以上（WCAG AA）。状態は色だけに頼らず、文字（「少ない」「10 分超」など）も出す。
+ */
+.staff-root {
+  --st-on-primary: #ffffff;
+  --st-focus: #1a5fb4;
+  --st-surface-2: #f1ece0;
+  --st-danger: #b3261e;
+  --st-on-danger: #ffffff;
+  --st-danger-bg: #fdeceb;
+  --st-danger-text: #8a1c16;
+  --st-warn-bg: #fff2cc;
+  --st-warn-text: #664000;
+  --st-warn-border: #b36b00;
+  --st-ok-bg: #e3f2e5;
+  --st-ok-text: #1d5a2a;
+  --st-ok-border: #2e7d3c;
+  --st-control-border: #6b6254;
+  min-height: 100vh;
+  font-size: 15px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .staff-root {
+    --st-on-primary: #17140f;
+    --st-focus: #8ab4f8;
+    --st-surface-2: #2a251b;
+    --st-danger: #ff8f85;
+    --st-on-danger: #2b0b08;
+    --st-danger-bg: #3d1c1a;
+    --st-danger-text: #ffb4ab;
+    --st-warn-bg: #3d2f0d;
+    --st-warn-text: #ffd98a;
+    --st-warn-border: #e0a35a;
+    --st-ok-bg: #1b3322;
+    --st-ok-text: #a8e0b4;
+    --st-ok-border: #5fb36f;
+    --st-control-border: #b3a891;
+  }
+}
+
+.staff-root h1 { font-size: 22px; margin: 4px 0 12px; }
+.staff-root h2 { font-size: 17px; margin: 24px 0 10px; }
+.staff-root h3 { font-size: 16px; margin: 0 0 4px; color: var(--text); }
+.staff-root p { margin: 0 0 6px; }
+.staff-root a { color: var(--primary); }
+.staff-root :focus-visible { outline: 3px solid var(--st-focus); outline-offset: 2px; }
+.staff-root .sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+.staff-root .tag { display: inline-block; font-weight: 700; }
+.staff-root .tag-warn { background: var(--st-warn-bg); color: var(--st-warn-text); border: 1px solid var(--st-warn-border); }
+.staff-root .tag-danger { background: var(--st-danger-bg); color: var(--st-danger-text); border: 1px solid var(--st-danger); }
+
+/* ---- ボタン・フォーム（高さ 44px 以上） ---- */
+.staff-root .st-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; min-width: 44px; padding: 8px 16px;
+  border: 1px solid transparent; border-radius: 8px;
+  font: inherit; font-weight: 700; line-height: 1.3; text-decoration: none; cursor: pointer;
+}
+.staff-root .st-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.staff-root .st-btn-primary { background: var(--primary); color: var(--st-on-primary); }
+.staff-root .st-btn-secondary { background: var(--surface); color: var(--text); border-color: var(--st-control-border); }
+.staff-root .st-btn-danger { background: var(--st-danger); color: var(--st-on-danger); }
+.staff-root .st-btn-danger-outline { background: var(--surface); color: var(--st-danger); border-color: var(--st-danger); }
+.staff-root .st-btn-block { width: 100%; }
+.staff-root .st-form { display: grid; gap: 12px; }
+.staff-root .st-field { display: grid; gap: 4px; }
+.staff-root .st-field label { font-weight: 700; }
+.staff-root input[type='text'], .staff-root input[type='email'], .staff-root input[type='password'], .staff-root select {
+  width: 100%; min-height: 44px; padding: 8px 12px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--st-control-border); border-radius: 8px;
+  font: inherit; font-size: 16px; /* 16px 未満だと、iOS が入力で拡大する */
+}
+.staff-root .st-field-error { color: var(--st-danger-text); font-weight: 700; }
+.staff-root .st-form-error { color: var(--st-danger-text); background: var(--st-danger-bg); border: 1px solid var(--st-danger); border-radius: 8px; padding: 10px 12px; font-weight: 700; }
+
+/* ---- ヘッダー ---- */
+.staff-root .st-skip { position: absolute; left: 8px; top: -60px; z-index: 10; padding: 10px 14px; background: var(--surface); color: var(--text); border: 2px solid var(--st-focus); border-radius: 8px; }
+.staff-root .st-skip:focus { top: 8px; }
+.staff-root .st-header { background: var(--surface); border-bottom: 1px solid var(--border); }
+.staff-root .st-header-inner { max-width: 1440px; margin: 0 auto; padding: 6px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; }
+.staff-root .st-brand { display: flex; align-items: baseline; gap: 8px; margin: 0; }
+.staff-root .st-brand-name { font-weight: 800; font-size: 17px; }
+.staff-root .st-brand-sub { color: var(--muted); font-size: 13px; }
+.staff-root .st-nav ul { display: flex; gap: 4px; list-style: none; margin: 0; padding: 0; }
+.staff-root .st-nav a {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px;
+  color: var(--text); text-decoration: none; font-weight: 600; border-bottom: 3px solid transparent;
+}
+.staff-root .st-nav a.is-active { color: var(--tag-text); background: var(--tag-bg); border-bottom-color: var(--primary); font-weight: 800; }
+.staff-root .st-who { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 0 auto; }
+.staff-root .st-who-store { font-weight: 700; }
+.staff-root .st-logout { margin: 0; }
+
+/* ---- 本文 ---- */
+.staff-root .st-main { max-width: 1440px; margin: 0 auto; padding: 12px 20px 56px; overflow-wrap: anywhere; }
+.staff-root .st-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 20px; margin-bottom: 8px; }
+.staff-root .st-toolbar-refresh { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-left: auto; }
+.staff-root .st-toolbar-refresh p { margin: 0; }
+.staff-root .st-storeselect { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 8px; }
+.staff-root .st-storeselect label { font-weight: 700; }
+.staff-root .st-storeselect select { width: auto; min-width: 200px; max-width: 100%; }
+
+.staff-root .st-message { margin: 0 0 10px; padding: 10px 12px; border-radius: 8px; border: 1px solid; border-left-width: 6px; font-weight: 600; }
+.staff-root .st-message-label { margin-right: 10px; font-weight: 800; }
+.staff-root .st-message-ok { background: var(--st-ok-bg); color: var(--st-ok-text); border-color: var(--st-ok-border); }
+.staff-root .st-message-error { background: var(--st-danger-bg); color: var(--st-danger-text); border-color: var(--st-danger); }
+.staff-root .st-live { min-height: 0; }
+
+.staff-root .st-notice { background: var(--surface); border: 1px solid var(--border); border-left-width: 6px; border-radius: var(--radius); padding: 12px 16px; margin: 8px 0 16px; max-width: 720px; }
+.staff-root .st-notice-error { border-color: var(--st-danger); background: var(--st-danger-bg); color: var(--st-danger-text); }
+.staff-root .st-notice-error a { color: inherit; }
+.staff-root .st-notice-title { font-weight: 800; }
+
+/* ---- 調理ボード ---- */
+.staff-root .st-columns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.staff-root .st-column { background: var(--st-surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; min-width: 0; }
+.staff-root .st-column-title { display: flex; align-items: center; justify-content: space-between; margin: 0 0 8px; font-size: 16px; }
+.staff-root .st-count { min-width: 28px; padding: 0 8px; border-radius: 999px; background: var(--tag-bg); color: var(--tag-text); font-size: 14px; text-align: center; }
+.staff-root .st-card-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.staff-root .st-empty { margin: 4px 2px; }
+.staff-root .st-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.staff-root .st-card.is-overdue { border: 2px solid var(--st-warn-border); background: var(--st-warn-bg); color: var(--st-warn-text); }
+.staff-root .st-card.is-overdue .st-item-spec, .staff-root .st-card.is-overdue .st-elapsed-label { color: var(--st-warn-text); }
+.staff-root .st-card-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.staff-root .st-pickup { display: grid; margin: 0; line-height: 1.1; }
+.staff-root .st-pickup-label { font-size: 12.5px; color: var(--muted); }
+.staff-root .st-pickup-no { font-size: 38px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.staff-root .st-card.is-overdue .st-pickup-label { color: var(--st-warn-text); }
+.staff-root .st-elapsed { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 2px 6px; margin: 0; text-align: right; }
+.staff-root .st-elapsed-label { font-size: 12.5px; color: var(--muted); }
+.staff-root .st-elapsed-value { font-weight: 800; font-size: 16px; }
+.staff-root .st-items { list-style: none; margin: 8px 0; padding: 8px 0 0; border-top: 1px solid var(--border); display: grid; gap: 4px; }
+.staff-root .st-items li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
+.staff-root .st-item-name { font-weight: 700; }
+.staff-root .st-item-spec { color: var(--muted); font-size: 14px; }
+.staff-root .st-item-qty { margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; }
+.staff-root .st-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.staff-root .st-actions .st-btn-primary { flex: 1 1 auto; }
+.staff-root .st-cancel { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--st-control-border); display: grid; gap: 8px; }
+.staff-root .st-cancel .st-actions { margin-top: 0; }
+
+/* ---- 在庫 ---- */
+.staff-root .st-stock-summary { margin: 4px 0 10px; }
+.staff-root .st-low-count { color: var(--st-danger-text); margin-left: 4px; }
+.staff-root .st-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.staff-root .st-table th, .staff-root .st-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+.staff-root .st-table thead th { background: var(--st-surface-2); font-size: 14px; }
+.staff-root .st-table tbody th { font-weight: 700; }
+.staff-root .st-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.staff-root .st-table tr.is-low { background: var(--st-danger-bg); }
+.staff-root .st-table tr.is-low th[scope='row'] { box-shadow: inset 6px 0 0 var(--st-danger); }
+.staff-root .st-table-note { margin-top: 8px; }
+.staff-root .st-ops { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.staff-root .st-op { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; min-width: 0; }
+.staff-root .st-op .st-message { margin: 0; }
+
+/* ---- ログイン ---- */
+.staff-root .st-login { min-height: 100vh; display: grid; place-items: start center; padding: 48px 16px; }
+.staff-root .st-login-card { width: 100%; max-width: 420px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; display: grid; gap: 8px; }
+.staff-root .st-login-card h1 { margin: 4px 0 0; font-size: 22px; }
+.staff-root .st-login-foot { margin-top: 8px; }
+
+/* ---- 幅: 1280px 基準。狭い幅では、列・表を縦に積む（横スクロールを出さない。390px で確認） ---- */
+@media (max-width: 1100px) {
+  .staff-root .st-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .staff-root .st-ops { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+  .staff-root .st-header-inner, .staff-root .st-main { padding-left: 16px; padding-right: 16px; }
+  .staff-root .st-who { margin-left: 0; }
+  .staff-root .st-toolbar-refresh { margin-left: 0; }
+  .staff-root .st-storeselect select { flex: 1 1 200px; }
+
+  .staff-root .st-table, .staff-root .st-table tbody, .staff-root .st-table tr, .staff-root .st-table th, .staff-root .st-table td { display: block; }
+  .staff-root .st-table { border: 0; background: transparent; }
+  .staff-root .st-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .staff-root .st-table tr { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; padding: 6px 0; }
+  .staff-root .st-table tr.is-low { background: var(--st-danger-bg); border-color: var(--st-danger); }
+  .staff-root .st-table tr.is-low th[scope='row'] { box-shadow: none; }
+  .staff-root .st-table th[scope='row'] { border-bottom: 0; font-size: 16px; }
+  .staff-root .st-table td { display: flex; justify-content: space-between; gap: 12px; border-bottom: 0; padding-top: 4px; padding-bottom: 4px; text-align: right; }
+  .staff-root .st-table td::before { content: attr(data-label); color: var(--muted); font-weight: 600; text-align: left; }
+  .staff-root .st-table tr.is-low td::before { color: var(--st-danger-text); }
+}
+
+@media (max-width: 640px) {
+  .staff-root .st-columns { grid-template-columns: 1fr; }
+}
