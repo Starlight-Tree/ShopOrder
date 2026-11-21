@@ -28,7 +28,7 @@ from app.chat.context import TurnContext
 from app.chat.model import ChatMessage, ToolCall
 from app.chat.prompt import SYSTEM_PROMPT
 
-log = logging.getLogger("oasis.chat")
+log = logging.getLogger("shop_order.chat")
 
 
 @dataclass(frozen=True)

@@ -7,7 +7,7 @@ import { devToolsEnabled, isValidDevUser } from '../../src/lib/shop/dev-user';
 import { formString } from '../../src/lib/shop/input';
 import type { ActionState } from '../../src/lib/shop/types';
 
-/** 開発用ログイン名を Cookie（oasis_dev_user）に入れる。値は [a-z0-9-]{1,40} だけ。本番（NODE_ENV=production）では受け付けない */
+/** 開発用ログイン名を Cookie（shop_order_dev_user）に入れる。値は [a-z0-9-]{1,40} だけ。本番（NODE_ENV=production）では受け付けない */
 export async function setDevUserAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   if (!devToolsEnabled()) return { ok: false, message: 'この環境では使えません。' };
   const jar = await cookies();

@@ -5,7 +5,7 @@ import os
 import pytest
 
 TEST_URL = os.environ.get("TEST_DATABASE_URL")
-EVAL_DB = "oasis_eval"
+EVAL_DB = "shop_order_eval"
 
 
 def _new_database(name: str) -> str:

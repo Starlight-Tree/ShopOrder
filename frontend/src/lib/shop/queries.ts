@@ -1,5 +1,5 @@
 // 画面のサーバー側から、API を呼ぶ関数。ブラウザーは API を直接呼ばない。
-// 利用者は X-Dev-User（Cookie oasis_dev_user の値）で渡す。失敗は例外にせず、ApiResult で返す（呼ぶ側が code で文言を選ぶ）。
+// 利用者は X-Dev-User（Cookie shop_order_dev_user の値）で渡す。失敗は例外にせず、ApiResult で返す（呼ぶ側が code で文言を選ぶ）。
 import { cache } from 'react';
 import type { Cart, CheckoutProposal, Order, OrderSummary } from '../contract';
 import { apiRequest, type ApiResult } from '../server-api';

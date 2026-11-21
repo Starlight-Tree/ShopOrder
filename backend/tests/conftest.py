@@ -38,7 +38,7 @@ def client():
         pytest.skip("TEST_DATABASE_URL が未設定です")
     from fastapi.testclient import TestClient
 
-    test_url = new_database("oasis_test")
+    test_url = new_database("shop_order_test")
     os.environ["DATABASE_URL"] = test_url
     os.environ["DEMO_STAFF_PASSWORD"] = "test-staff-pass"
     os.environ["APP_ENV"] = "test"  # セッションの fixture は、関数単位の _dev_defaults より先に動く。lifespan の起動検査（許可リスト）を通すため

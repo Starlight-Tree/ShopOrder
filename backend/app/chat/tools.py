@@ -32,7 +32,7 @@ from app.chat.model import ToolCall, ToolSpec
 from app.db import connection
 from app.errors import MESSAGES, ApiError
 
-log = logging.getLogger("oasis.chat.tools")
+log = logging.getLogger("shop_order.chat.tools")
 
 # ツール自身のエラー（ApiError にならないもの）の固定の文。ApiError の code は app/errors.py の MESSAGES を使う。
 TOOL_MESSAGES: dict[str, str] = {

@@ -1,6 +1,6 @@
 'use server';
 // ログイン（スタッフと同じ API）。API が返したトークンは、HttpOnly の Cookie に入れるだけで、画面（クライアント）へは返さない。
-// Cookie は、スタッフの画面と同じ名前（oasis_staff）で、Path=/manager（スタッフの Cookie は Path=/staff で /manager に届かないため）。
+// Cookie は、スタッフの画面と同じ名前（shop_order_staff）で、Path=/manager（スタッフの Cookie は Path=/staff で /manager に届かないため）。
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { MANAGER_COOKIE, managerCookieOptions } from '../../../src/lib/manager/cookie';

@@ -4,16 +4,16 @@
 #   http://localhost:3400            # 画面
 #   http://localhost:8400/docs       # API の仕様（FastAPI の自動文書）
 # 他のローカルのサービス（JobNavi 3200/8200、DocuNavi 3000）と同時に動かせるよう、ポートは 3400 / 8400 にしてある。変えない。
-name: oasis-order
+name: shop-order
 
 services:
   # 店・注文などのデータ。ホストにポートを公開せず、internal の backend-net（外へも出られない）にだけ置く。
   db:
     image: postgres:17
-    container_name: oasis-db
+    container_name: shop-order-db
     environment:
-      POSTGRES_DB: oasis
-      POSTGRES_USER: oasis
+      POSTGRES_DB: shop_order
+      POSTGRES_USER: shop_order
       POSTGRES_PASSWORD: "${LOCAL_DB_PASSWORD:-oasis-local}"
     volumes:
       - pg-data:/var/lib/postgresql/data
@@ -21,7 +21,7 @@ services:
       - backend-net
     healthcheck:
       # -h 127.0.0.1: 初回の初期化中の一時サーバー（ソケットだけ待ち受ける）を、起動済みと見なさないため
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U oasis -d oasis"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U shop_order -d shop_order"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -33,11 +33,11 @@ services:
   # マイグレーション（番号付き SQL。適用の前に DB のバックアップを取る: docs/development.md）。--status / --dry-run が使える
   migrate:
     build: ./backend
-    container_name: oasis-migrate
+    container_name: shop-order-migrate
     profiles: ["tools"]
     command: ["python", "-m", "app.migrate"]
     environment:
-      DATABASE_URL: &database_url "postgresql://oasis:${LOCAL_DB_PASSWORD:-oasis-local}@db:5432/oasis"
+      DATABASE_URL: &database_url "postgresql://shop_order:${LOCAL_DB_PASSWORD:-oasis-local}@db:5432/shop_order"
     depends_on:
       db:
         condition: service_healthy
@@ -48,7 +48,7 @@ services:
   # ダミーのデータ（店・メニュー）を入れる（開発・テスト専用。DEMO_DATA=allow が無いと実行を拒否する。入れ直すときは --reset）
   seed:
     build: ./backend
-    container_name: oasis-seed
+    container_name: shop-order-seed
     profiles: ["tools"]
     command: ["python", "-m", "app.seed_demo"]
     environment:
@@ -63,7 +63,7 @@ services:
 
   api:
     build: ./backend
-    container_name: oasis-api
+    container_name: shop-order-api
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/code/app"]
     environment:
       DATABASE_URL: *database_url
@@ -103,7 +103,7 @@ services:
   # API も読み取り・確定の前に同じ処理を遅延で呼ぶので、worker が止まっても在庫は固まらない。ポートは公開しない。
   worker:
     build: ./backend
-    container_name: oasis-worker
+    container_name: shop-order-worker
     command: ["python", "-m", "app.worker"]
     environment:
       DATABASE_URL: *database_url
@@ -121,7 +121,7 @@ services:
   # 画面の開発サーバー（frontend/ の next dev）。API はサーバー側（Next.js）から呼ぶので、ブラウザーは API を直接呼ばない。
   frontend:
     image: node:24-slim
-    container_name: oasis-frontend
+    container_name: shop-order-frontend
     working_dir: /app
     environment:
       API_BASE_URL: "http://api:8000"

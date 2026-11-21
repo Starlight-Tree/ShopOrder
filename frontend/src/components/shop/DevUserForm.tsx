@@ -5,7 +5,7 @@ import { currentDevUserLabel } from '../../lib/shop/dev-user';
 import { ActionForm } from './ActionForm';
 import { SubmitButton } from './SubmitButton';
 
-/** 開発用ログイン名の切替（Cookie oasis_dev_user）。本番では、呼ぶ側が出さない */
+/** 開発用ログイン名の切替（Cookie shop_order_dev_user）。本番では、呼ぶ側が出さない */
 export function DevUserForm({ action, current }: { action: FormAction; current: string | undefined }) {
   return (
     <ActionForm action={action} className="shop-devuser">

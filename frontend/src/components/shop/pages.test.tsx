@@ -10,7 +10,7 @@ import OrderPage from '../../../app/(shop)/orders/[id]/page';
 import OrdersPage from '../../../app/(shop)/orders/page';
 
 const env = vi.hoisted(() => ({ cookie: undefined as string | undefined }));
-vi.mock('next/headers', () => ({ cookies: async () => ({ get: (name: string) => (name === 'oasis_dev_user' && env.cookie !== undefined ? { name, value: env.cookie } : undefined) }) }));
+vi.mock('next/headers', () => ({ cookies: async () => ({ get: (name: string) => (name === 'shop_order_dev_user' && env.cookie !== undefined ? { name, value: env.cookie } : undefined) }) }));
 vi.mock('next/cache', () => ({ refresh: vi.fn() }));
 vi.mock('next/navigation', () => ({
   usePathname: () => '/',

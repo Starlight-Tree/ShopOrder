@@ -68,7 +68,7 @@ P4 の分析（店頭受け取りだけ）を、バックエンドと店長の�
 
 - **ライブラリ:** shadcn/ui の Chart ではなく、**Recharts（v3.10.1。正確な版で固定）を直接使う**（shadcn/ui のコード生成は使わない）。v3.11.0 が最新だが、公開から 4 日（2026-11-17）で、それ以前の最新の安定版にした（出どころ: `npm view recharts`、2026-11-21）。
 - **バンドル（採用前の計測。2026-11-21、`next build` の出力で確認）:** Recharts を含むチャンクは 1 つ（372,228 バイト、gzip で 108,997 バイト）。参照するのは `/manager` の概況・売上・商品・在庫・顧客の `react-loadable-manifest.json` だけで、顧客のトップ（`/`）のクライアントのチャンクは 1 つ（13,994 バイト）で Recharts を含まない。時間帯・ログインは、Recharts を読まない。Vitest で、Recharts を import するのは `charts/` だけで、動的 import（`ssr: false`）からだけ読まれることを確かめている。
-- **Cookie:** スタッフの Cookie（`oasis_staff`）は Path=/staff で `/manager` に届かない。`/manager/login` が、同じ名前・同じトークンの Cookie を Path=/manager で別に出す（`/staff` の Cookie には触らない）。スタッフの画面とログインの状態は共有しない。
+- **Cookie:** スタッフの Cookie（`shop_order_staff`）は Path=/staff で `/manager` に届かない。`/manager/login` が、同じ名前・同じトークンの Cookie を Path=/manager で別に出す（`/staff` の Cookie には触らない）。スタッフの画面とログインの状態は共有しない。
 - **今日の概況の 4 つ目のタイル:** 設計の「配達中の件数」は、宅配が無いので「対応中の注文」（受付〜準備完了）にした。
 - **受け取り方法・配達:** 表（`fulfillment` 列）は入れたが、画面は P2 の後。原価率は、原価の列が無いので未実装。
 - **在庫の日次:** 営業日の行だけ（休業日の入荷・廃棄は残量に入るが、その日の行は無い）。`on_hand_end` に非負の CHECK は付けない（台帳の時刻が不整合だと負になりうる。照合 `inventory.reconcile` で見つける）。

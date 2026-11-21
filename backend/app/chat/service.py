@@ -22,7 +22,7 @@ from app.chat.model import ChatMessage
 from app.db import connection
 from app.errors import ApiError
 
-log = logging.getLogger("oasis.chat")
+log = logging.getLogger("shop_order.chat")
 
 
 @dataclass

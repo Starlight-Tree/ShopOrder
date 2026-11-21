@@ -12,7 +12,7 @@ from datetime import timedelta
 from app import clock
 from app.db import connection
 
-log = logging.getLogger("oasis.sweep")
+log = logging.getLogger("shop_order.sweep")
 
 KEEP = timedelta(days=1)
 

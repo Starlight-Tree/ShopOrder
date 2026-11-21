@@ -3,7 +3,7 @@ import { STAFF_COOKIE } from '../staff/cookie';
 import { clearedManagerCookieOptions, MANAGER_COOKIE, managerCookieOptions, MANAGER_COOKIE_PATH } from './cookie';
 
 describe('店長の画面の Cookie', () => {
-  it('名前はスタッフの Cookie と同じ（oasis_staff）。Path だけ /manager', () => {
+  it('名前はスタッフの Cookie と同じ（shop_order_staff）。Path だけ /manager', () => {
     expect(MANAGER_COOKIE).toBe(STAFF_COOKIE);
     expect(MANAGER_COOKIE_PATH).toBe('/manager');
     const o = managerCookieOptions('2026-11-21T12:00:00Z', 'development', Date.parse('2026-11-21T00:00:00Z'));

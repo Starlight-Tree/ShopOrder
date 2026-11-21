@@ -60,7 +60,7 @@ def test_a_turn_streams_text_tools_and_cards_and_is_saved(client, shop):
     assert reply.done and reply.types[0] == "start" and reply.types[-1] == "finish"
     assert reply.chunks[0]["messageMetadata"]["thread_id"] == chat.id
     assert reply.tools == ["get_cart", "search_menu", "set_cart_item"]
-    assert reply.chunks[1]["providerMetadata"]["oasis"]["auto"] is True  # ターンの先頭の get_cart は、自動
+    assert reply.chunks[1]["providerMetadata"]["shopOrder"]["auto"] is True  # ターンの先頭の get_cart は、自動
     assert all(o["ok"] for o in reply.outputs.values()) and "合計は 900 ルミ" in reply.text
     assert [c["kind"] for c in reply.cards] == ["products", "cart"]  # 先頭の get_cart のカードは出さない
     assert reply.types.index("tool-input-available") < reply.types.index("data-card") < reply.types.index("text-start")

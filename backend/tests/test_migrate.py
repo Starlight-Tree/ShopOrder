@@ -30,7 +30,7 @@ def _tables(url):
 
 
 def test_new_database_gets_all_migrations_and_rerun_is_a_noop():
-    url = new_database("oasis_migrate_a")
+    url = new_database("shop_order_migrate_a")
     code, _ = _run(url)
     assert code == 0
     assert {"areas", "stores", "menu_items", "menu_variants", "schema_migrations"} <= _tables(url)
@@ -42,7 +42,7 @@ def test_new_database_gets_all_migrations_and_rerun_is_a_noop():
 
 
 def test_dry_run_changes_nothing():
-    url = new_database("oasis_migrate_b")
+    url = new_database("shop_order_migrate_b")
     code, lines = _run(url, dry_run=True)
     assert code == 0 and any("0001_stores_and_menu" in line and "0004_orders" in line for line in lines)
     assert "schema_migrations" not in _tables(url)
@@ -51,7 +51,7 @@ def test_dry_run_changes_nothing():
 def test_a_changed_applied_file_stops_the_run(tmp_path, monkeypatch):
     import shutil
 
-    url = new_database("oasis_migrate_c")
+    url = new_database("shop_order_migrate_c")
     assert _run(url)[0] == 0
     work = tmp_path / "migrations"
     shutil.copytree(migrate.MIGRATIONS_DIR, work)
@@ -65,7 +65,7 @@ def test_a_changed_applied_file_stops_the_run(tmp_path, monkeypatch):
 def test_failed_migration_rolls_back_and_is_not_recorded(tmp_path, monkeypatch):
     import shutil
 
-    url = new_database("oasis_migrate_d")
+    url = new_database("shop_order_migrate_d")
     real_versions = _all_versions()  # monkeypatch の前の、本物のマイグレーション
     work = tmp_path / "migrations"
     shutil.copytree(migrate.MIGRATIONS_DIR, work)
@@ -82,7 +82,7 @@ def test_failed_migration_rolls_back_and_is_not_recorded(tmp_path, monkeypatch):
 def test_drop_and_truncate_are_refused(tmp_path, monkeypatch):
     import shutil
 
-    url = new_database("oasis_migrate_e")
+    url = new_database("shop_order_migrate_e")
     work = tmp_path / "migrations"
     shutil.copytree(migrate.MIGRATIONS_DIR, work)
     (work / f"{_next_number()}_bad.sql").write_text("DROP TABLE stores;\n", encoding="utf-8")

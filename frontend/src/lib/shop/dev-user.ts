@@ -1,4 +1,4 @@
-// 開発用ログイン名（Cookie oasis_dev_user）。API の X-Dev-User と同じ規則: [a-z0-9-]{1,40}
+// 開発用ログイン名（Cookie shop_order_dev_user）。API の X-Dev-User と同じ規則: [a-z0-9-]{1,40}
 import { DEFAULT_DEV_USER } from './constants';
 
 const DEV_USER_PATTERN = /^[a-z0-9-]{1,40}$/;

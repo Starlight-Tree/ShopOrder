@@ -4,8 +4,8 @@ import { clearedCookieOptions, DEFAULT_MAX_AGE_SECONDS, STAFF_COOKIE, staffCooki
 const NOW = Date.parse('2026-11-21T03:00:00Z');
 
 describe('staffCookieOptions', () => {
-  it('名前は oasis_staff。HttpOnly・SameSite=Lax・Path=/staff', () => {
-    expect(STAFF_COOKIE).toBe('oasis_staff');
+  it('名前は shop_order_staff。HttpOnly・SameSite=Lax・Path=/staff', () => {
+    expect(STAFF_COOKIE).toBe('shop_order_staff');
     const o = staffCookieOptions('2026-11-21T15:00:00Z', 'development', NOW);
     expect(o).toMatchObject({ httpOnly: true, sameSite: 'lax', path: '/staff', secure: false });
     expect(o.expires).toEqual(new Date('2026-11-21T15:00:00Z'));

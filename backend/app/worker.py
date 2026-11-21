@@ -14,7 +14,7 @@ import threading
 from app import dispatch, orders, sweep
 from app.db import close_pool, open_pool
 
-log = logging.getLogger("oasis.worker")
+log = logging.getLogger("shop_order.worker")
 
 INTERVAL_SECONDS = float(os.environ.get("WORKER_INTERVAL_SECONDS", "30"))
 

@@ -20,7 +20,7 @@ from app.routes import analytics as analytics_routes
 from app.schemas import MenuItem, Store
 from app.settings import cors_origins
 
-log = logging.getLogger("oasis.api")
+log = logging.getLogger("shop_order.api")
 
 
 @asynccontextmanager

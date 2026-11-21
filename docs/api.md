@@ -14,7 +14,7 @@
 | 誰 | 方法 | 備考 |
 |---|---|---|
 | 顧客 | 開発の既定（`AUTH_MODE=dev`）: ヘッダー `X-Dev-User: <名前>` があればその利用者、無ければ `demo-customer` | 名前は `[a-z0-9-]{1,40}`。本番相当（`APP_ENV=production`）で `AUTH_MODE=dev` なら起動を拒否する。Google ログインは後（P6） |
-| スタッフ・店長 | `POST /api/staff/login` が返す不透明トークンを `Authorization: Bearer <token>` で送る | 画面は HttpOnly Cookie `oasis_staff` に入れ、サーバー側で付け替える。トークンはハッシュだけ保存。有効 12 時間 |
+| スタッフ・店長 | `POST /api/staff/login` が返す不透明トークンを `Authorization: Bearer <token>` で送る | 画面は HttpOnly Cookie `shop_order_staff` に入れ、サーバー側で付け替える。トークンはハッシュだけ保存。有効 12 時間 |
 
 デモのスタッフ（`seed_demo`・`DEMO_DATA=allow` だけ）: 各店 `staff-<店の code>@oasis-cafe.example`、店長（全店）`manager@oasis-cafe.example`。パスワードは環境変数 `DEMO_STAFF_PASSWORD`（既定 `oasis-demo-pass`。ダミーで、秘密ではない）。
 
@@ -268,7 +268,7 @@
 
 ## 分析（P4）
 
-店長（全店）と店舗スタッフ（自店の売上・在庫）の分析。定義は [metrics.md](metrics.md)、作り方は [analytics.md](analytics.md)。応答は、`analytics` の集計表を読むだけの薄い層（確定した日は日次集計、当日は元データから都度）。**データはすべてダミー。** 画面は `frontend/app/manager`（Cookie `oasis_staff`。Path は `/manager`）。
+店長（全店）と店舗スタッフ（自店の売上・在庫）の分析。定義は [metrics.md](metrics.md)、作り方は [analytics.md](analytics.md)。応答は、`analytics` の集計表を読むだけの薄い層（確定した日は日次集計、当日は元データから都度）。**データはすべてダミー。** 画面は `frontend/app/manager`（Cookie `shop_order_staff`。Path は `/manager`）。
 
 **権限**（スタッフのトークン `Authorization: Bearer`。毎回 API が確認する）
 
@@ -317,7 +317,7 @@
 
 ```
 start                  {messageId, messageMetadata: {thread_id}}
-tool-input-available   {toolCallId, toolName, input, providerMetadata: {oasis: {auto}}}   ターンの先頭の get_cart は auto: true
+tool-input-available   {toolCallId, toolName, input, providerMetadata: {shopOrder: {auto}}}   ターンの先頭の get_cart は auto: true
 tool-output-available  {toolCallId, output: {ok, summary, error?}}                        要約だけ（中身は、カードで出す）
 data-card              {data: <カード>}
 text-start / text-delta{delta} … / text-end                                              ガードを通った全文。24 文字ごとに分ける

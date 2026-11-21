@@ -7,7 +7,7 @@ export const MAX_LINE_QTY = 20;
 export const MAX_ORDER_TOTAL_LUMI = 30_000;
 
 /** 開発用ログイン名を入れる Cookie（値は X-Dev-User に付けて API へ渡す） */
-export const DEV_USER_COOKIE = 'oasis_dev_user';
+export const DEV_USER_COOKIE = 'shop_order_dev_user';
 
 /** API 側の既定の利用者（X-Dev-User が無いとき） */
 export const DEFAULT_DEV_USER = 'demo-customer';

@@ -19,7 +19,7 @@ from app.chat import agent, config, guardrails, service, stream
 from app.chat import errors as _errors  # noqa: F401（固定の文を MESSAGES に足す）
 from app.chat.schemas import MessageBody, Thread, ThreadCreate, ThreadDetail
 
-log = logging.getLogger("oasis.chat")
+log = logging.getLogger("shop_order.chat")
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 ThreadId = Path(description="スレッドの ID（uuid）")
 

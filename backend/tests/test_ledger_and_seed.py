@@ -18,7 +18,7 @@ NOW = datetime(2026, 11, 21, 3, 0, tzinfo=timezone.utc)
 
 @pytest.fixture
 def fresh_db():
-    url = new_database("oasis_ledger_test")
+    url = new_database("shop_order_ledger_test")
     assert migrate.apply(url, out=lambda *_: None) == 0
     seed_demo.main(reset=True, url=url)
     return url
@@ -60,11 +60,11 @@ def test_delete_is_allowed_only_with_the_reset_setting_and_update_never(fresh_db
     with psycopg.connect(fresh_db) as conn:
         _make_order(conn)
         conn.commit()
-        conn.execute("SET LOCAL oasis.allow_ledger_reset = 'on'")
+        conn.execute("SET LOCAL shop_order.allow_ledger_reset = 'on'")
         with pytest.raises(psycopg.errors.IntegrityConstraintViolation):
             conn.execute("UPDATE stock_movements SET qty = qty")  # 設定があっても、UPDATE は常に拒否
         conn.rollback()
-        conn.execute("SET LOCAL oasis.allow_ledger_reset = 'on'")
+        conn.execute("SET LOCAL shop_order.allow_ledger_reset = 'on'")
         conn.execute("DELETE FROM order_events")
         conn.execute("DELETE FROM stock_movements")
         conn.commit()
@@ -78,7 +78,20 @@ def test_delete_is_allowed_only_with_the_reset_setting_and_update_never(fresh_db
         with pytest.raises(psycopg.errors.IntegrityConstraintViolation):
             conn.execute("DELETE FROM stock_movements")
         conn.rollback()
-        assert conn.execute("SELECT current_setting('oasis.allow_ledger_reset', true)").fetchone()[0] in (None, "", "off")
+        assert conn.execute("SELECT current_setting('shop_order.allow_ledger_reset', true)").fetchone()[0] in (None, "", "off")
+
+
+def test_the_ledger_guard_uses_the_shop_order_names_and_ignores_the_old_setting(fresh_db):
+    """0008 で、トリガー関数の名前とセッション設定の名前を oasis から shop_order に替えた。振る舞いは同じで、古い名前の設定では DELETE が通らない。"""
+    with psycopg.connect(fresh_db) as conn:
+        names = {r[0] for r in conn.execute("SELECT proname FROM pg_proc WHERE proname LIKE '%forbid_ledger_change'")}
+        assert names == {"shop_order_forbid_ledger_change"}
+        _make_order(conn)
+        conn.commit()
+        conn.execute("SET LOCAL oasis.allow_ledger_reset = 'on'")  # 古い名前の設定
+        with pytest.raises(psycopg.errors.IntegrityConstraintViolation):
+            conn.execute("DELETE FROM order_events")
+        conn.rollback()
 
 
 def test_ledger_sign_rules_and_balance_checks(fresh_db):

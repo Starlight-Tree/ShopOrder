@@ -1,6 +1,6 @@
 """分析 API（/api/analytics）: 権限（店舗スタッフは他店が見えない・顧客と配達員は不可・顧客の分析は全店の店長だけ）・集計が元データと一致する・休業と売上 0 の区別・
 前期比の「比較不可」・ABC・曜日 × 時間帯・在庫の残日数と廃棄・当日の概況・応答に個人情報が無い。
-専用の使い捨て DB（oasis_analytics_api）に、過去の営業日の注文を直接入れて確かめる（共有の oasis_test を汚さない。アプリの接続プールを、このモジュールの間だけ付け替える）。"""
+専用の使い捨て DB（shop_order_analytics_api）に、過去の営業日の注文を直接入れて確かめる（共有の shop_order_test を汚さない。アプリの接続プールを、このモジュールの間だけ付け替える）。"""
 
 import os
 from datetime import date, datetime, timedelta, timezone
@@ -59,7 +59,7 @@ class Api:
 
 @pytest.fixture(scope="module")
 def api(client):
-    url = new_database("oasis_analytics_api")
+    url = new_database("shop_order_analytics_api")
     assert migrate.apply(url, out=lambda *_: None) == 0
     seed_demo.main(reset=True, url=url)
     saved = os.environ["DATABASE_URL"]

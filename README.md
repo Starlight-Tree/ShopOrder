@@ -31,7 +31,7 @@ docker compose up -d --build
 
 ```bash
 # バックエンド（使い捨ての Postgres 17 が要る）
-docker run -d --rm --name oasis-test-pg -p 127.0.0.1:55432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17
+docker run -d --rm --name shop-order-test-pg -p 127.0.0.1:55432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17
 cd backend && python3.13 -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.in
 TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:55432/postgres .venv/bin/python -m pytest -q -rs
 
@@ -50,9 +50,9 @@ scripts/verify.sh
 
 ```bash
 mkdir -p backups
-docker compose exec -T db pg_dump -U oasis -Fc oasis > backups/oasis.dump.new
-ls -l backups/oasis.dump.new          # サイズが 0 でないことを確かめてから
-mv backups/oasis.dump.new backups/oasis.dump
+docker compose exec -T db pg_dump -U shop_order -Fc shop_order > backups/shop-order.dump.new
+ls -l backups/shop-order.dump.new          # サイズが 0 でないことを確かめてから
+mv backups/shop-order.dump.new backups/shop-order.dump
 docker compose run --rm --build migrate        # --build: マイグレーションを足したあとはイメージを作り直す
 ```
 

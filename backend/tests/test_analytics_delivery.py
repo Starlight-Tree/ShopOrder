@@ -49,7 +49,7 @@ def _prices(conn) -> tuple[int, int]:
 def scenario():
     """水曜（居住区本店）の注文。a 店頭 completed（OB ×2）/ b 宅配 completed（OB ×2 + 送料）/ c 宅配 delivery_failed / d 宅配 cancelled（返金済み）/
     e 宅配 paid（配達の前）/ f 店頭 cancelled。売上に入るのは a と b だけ。"""
-    url = _fresh("oasis_analytics_dlv")
+    url = _fresh("shop_order_analytics_dlv")
     with connect(url) as conn:
         main = store_id(conn, "residential-main")
         ob, sandwich = variant_id(conn, "oasis-blend", "M", "hot"), variant_id(conn, "hot-sandwich")
@@ -146,7 +146,7 @@ def _complete(url: str, public_id: str, day: date) -> None:
 
 
 def test_a_delivery_completed_the_day_after_it_was_placed_is_added_to_the_placed_day_by_the_next_build():
-    url, main, late = _late_completion_world("oasis_analytics_dlv_next")
+    url, main, late = _late_completion_world("shop_order_analytics_dlv_next")
     _build(url, today=date(2026, 6, 11))  # 水曜までを作る。この時点で late は未完了
     with connect(url) as conn:
         before = _built_sales(conn, main, WED)
@@ -159,7 +159,7 @@ def test_a_delivery_completed_the_day_after_it_was_placed_is_added_to_the_placed
 
 def test_a_delivery_completed_after_the_lookback_window_still_reaches_the_placed_day():
     """枠は 7 日先まで選べる。毎日続きを作るとき、遡りの日数（LOOKBACK_DAYS）より後に completed になった宅配が、確定した日の売上から落ちないか。"""
-    url, main, late = _late_completion_world("oasis_analytics_dlv_late")
+    url, main, late = _late_completion_world("shop_order_analytics_dlv_late")
     for day in range(11, 16):  # 毎日の続き（6/11〜6/15 に作る。各回は前日までを作る）
         _build(url, today=date(2026, 6, day))
     _complete(url, late, date(2026, 6, 15))  # 水曜の注文が 5 日後に届く

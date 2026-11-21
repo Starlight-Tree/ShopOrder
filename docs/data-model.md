@@ -94,7 +94,7 @@
 
 - **ロットは持たない（未実装）。** `stock_lots` も、`stock_balances` / `stock_movements` の `lot_id` 列も作っていない（今回の範囲外。FEFO・賞味期限・ロット別の原価は、入れるときに新しいマイグレーションで足す）。`stock_balances` の PK は `(store_id, item_id)`。`stock_items.shelf_life_days` も無い。
 - **`stock_movements`:** 符号つきの数量（reserve +n / release −n / consume −n〔on_hand と reserved の両方から引く〕/ receive +n / waste −n / adjust ±n）。`kind` ごとの符号を `CHECK` で守る。`on_hand = Σ(receive, consume, waste, adjust)`、`reserved = Σ(reserve, release, consume)`。`ref_id` は `text`（注文は `public_id`）、`actor` は `customer:<id>` / `staff:<id>` / `system` / `seed`。
-- **追記のみのトリガー**（`stock_movements`・`order_events`）は、UPDATE を常に拒否し、DELETE はセッション設定 `oasis.allow_ledger_reset = 'on'` のときだけ通す（`seed_demo --reset` 用。トランザクションの中だけ有効）。**TRUNCATE のトリガーは作っていない**（マイグレーション実行器が `TRUNCATE` の語を含む SQL を拒否するため）。
+- **追記のみのトリガー**（`stock_movements`・`order_events`）は、UPDATE を常に拒否し、DELETE はセッション設定 `shop_order.allow_ledger_reset = 'on'` のときだけ通す（`seed_demo --reset` 用。トランザクションの中だけ有効）。関数は `shop_order_forbid_ledger_change`（0002 では `oasis_` の名前で作り、0008 で本体と名前を替えた。適用済みの 0002・0004 は書き換えていない）。**TRUNCATE のトリガーは作っていない**（マイグレーション実行器が `TRUNCATE` の語を含む SQL を拒否するため）。
 - **`orders`:** `pickup_no` は全注文で NOT NULL（宅配も同じ採番を使う想定）。`status` の CHECK は、宅配の状態も含めた全 12 状態（API は P1 の 7 状態だけ返す）。`paid_at` `accepted_at` `ready_at` `completed_at` `cancelled_at` `cancel_reason` を持つ。確保の期限は `orders` ではなく `stock_reservations.expires_at`。
 - **`payments`:** `idempotency_key` 列は持たない（冪等は注文の確定のキーだけ。決済・状態変更の冪等キーは、本物の決済を入れるとき〔P6〕に足す）。
 - **`idempotency_keys`:** `response` は NULL 可（先にキーだけ取り、同じトランザクションの最後に入れる）。

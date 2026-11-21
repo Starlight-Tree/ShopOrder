@@ -26,7 +26,7 @@ def _seeded(name: str, today: date = TODAY, as_of: datetime = AS_OF) -> str:
 
 @pytest.fixture(scope="module")
 def hist():
-    return _seeded("oasis_hist_a")
+    return _seeded("shop_order_hist_a")
 
 
 def _fingerprint(url: str) -> dict:
@@ -49,7 +49,7 @@ def _fingerprint(url: str) -> dict:
 
 def test_the_seed_is_deterministic(hist):
     """同じ（今日・時刻）なら、別の DB に入れても、同じ内容（ID を除く）になる。"""
-    other = _seeded("oasis_hist_b")
+    other = _seeded("shop_order_hist_b")
     a, b = _fingerprint(hist), _fingerprint(other)
     assert a["orders"] and a == b
 
@@ -157,7 +157,7 @@ def test_closed_days_and_open_days_with_zero_sales_are_kept_apart_in_the_seeded_
 
 def test_the_festival_peak_appears_when_the_window_includes_december(tmp_path):
     """帰還祭（12/1〜12/25）: 期間に入れば、来店が増え、限定ドリンクが売れる。限定ドリンクは、期間外には売れない。"""
-    url = _seeded("oasis_hist_fest", today=date(2027, 1, 10), as_of=datetime(2027, 1, 10, 3, 0, tzinfo=timezone.utc))
+    url = _seeded("shop_order_hist_fest", today=date(2027, 1, 10), as_of=datetime(2027, 1, 10, 3, 0, tzinfo=timezone.utc))
     with connect(url) as conn:
         days = conn.execute("SELECT business_date, sum(orders)::int AS n FROM analytics.daily_store_summary GROUP BY 1").fetchall()
         inside = [d["n"] for d in days if date(2026, 12, 1) <= d["business_date"] <= date(2026, 12, 25)]
@@ -170,7 +170,7 @@ def test_the_festival_peak_appears_when_the_window_includes_december(tmp_path):
 def test_history_needs_reset_and_reset_clears_the_analytics_tables(hist):
     with pytest.raises(SystemExit, match="--reset"):
         seed_demo.main(reset=False, url=hist, history=True)
-    url = _seeded("oasis_hist_reset")
+    url = _seeded("shop_order_hist_reset")
     seed_demo.main(reset=True, url=url)  # 履歴なしの --reset は、注文も分析の表も空にする（P1 の挙動のまま）
     with connect(url) as conn:
         for table in ("orders", "order_events", "payments", "users", "store_order_counters"):

@@ -16,7 +16,7 @@ from app.auth import StaffUser
 from app.db import connection
 from app.errors import ApiError
 
-log = logging.getLogger("oasis.dispatch")
+log = logging.getLogger("shop_order.dispatch")
 
 ACTIVE = delivery_rules.ACTIVE_STATUSES
 

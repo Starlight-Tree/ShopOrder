@@ -125,7 +125,7 @@ def _staff_password() -> str:
     return os.environ.get("DEMO_STAFF_PASSWORD") or "oasis-demo-pass"  # ダミーで、秘密ではない（docs/api.md）
 
 
-# リセットで消す順（外部キーの子から親へ）。台帳（stock_movements・order_events）は、SET LOCAL oasis.allow_ledger_reset = 'on' のときだけ消せる
+# リセットで消す順（外部キーの子から親へ）。台帳（stock_movements・order_events）は、SET LOCAL shop_order.allow_ledger_reset = 'on' のときだけ消せる
 _RESET_ORDER = (
     "loyalty_ledger", "stock_reservation_lines", "stock_reservations", "payments", "idempotency_keys", "order_events", "order_items", "deliveries", "orders",
     "store_order_counters", "checkout_proposals", "cart_items", "carts", "addresses", "delivery_slots", "users", "staff_sessions", "staff_login_attempts",
@@ -145,7 +145,7 @@ def main(reset: bool = False, url: str | None = None, history: bool = False, tod
         today = today or (as_of + timedelta(hours=settings.local_utc_offset_hours())).date()
     with psycopg.connect(url or database_url()) as conn:
         if reset:
-            conn.execute("SET LOCAL oasis.allow_ledger_reset = 'on'")  # このトランザクションの中だけ。追記のみの表の DELETE を通す
+            conn.execute("SET LOCAL shop_order.allow_ledger_reset = 'on'")  # このトランザクションの中だけ。追記のみの表の DELETE を通す
             from app import seed_history as _seed_history
 
             _seed_history.reset_analytics(conn)  # 分析の表（派生データ）は、元の表より先に空にする

@@ -60,7 +60,7 @@ class UIMessageStream:
                 {"type": "text-end", "id": part_id},
             ]
         if event.type == "tool_call":
-            return [{"type": "tool-input-available", "toolCallId": d["id"], "toolName": d["name"], "input": d["args"], "providerMetadata": {"oasis": {"auto": d["auto"]}}}]
+            return [{"type": "tool-input-available", "toolCallId": d["id"], "toolName": d["name"], "input": d["args"], "providerMetadata": {"shopOrder": {"auto": d["auto"]}}}]
         if event.type == "tool_result":
             output = {"ok": d["ok"], "summary": d["summary"]}
             if d.get("error"):

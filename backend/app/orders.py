@@ -27,7 +27,7 @@ from app import clock, delivery, inventory, limits, payment
 from app.db import connection
 from app.errors import ApiError
 
-log = logging.getLogger("oasis.orders")
+log = logging.getLogger("shop_order.orders")
 
 T = TypeVar("T")
 

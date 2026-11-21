@@ -35,7 +35,7 @@ def _fresh(name: str) -> str:
 def scenario():
     """6/10（水）: 居住区本店は 2 件 completed（OB M ×2 = 900 と、ホットサンド 520）と 1 件 cancelled。ドーム店は水曜が定休だが 1 件 completed（営業した日）。
     6/11（木）: 本店は営業して注文なし（売上 0）。ドーム店は 1 件。6/12（金）: 本店は臨時休業（行なし）。当日 6/15 にも注文（作らない）。"""
-    url = _fresh("oasis_analytics_scn")
+    url = _fresh("shop_order_analytics_scn")
     with connect(url) as conn:
         main, dome = store_id(conn, "residential-main"), store_id(conn, "residential-dome")
         ob, latte, sandwich = variant_id(conn, "oasis-blend", "M", "hot"), variant_id(conn, "cafe-latte", "M", "hot"), variant_id(conn, "hot-sandwich")
@@ -111,7 +111,7 @@ def test_the_current_day_is_not_built(scenario):
 
 
 def test_rebuilding_gives_the_same_rows_and_picks_up_changed_orders():
-    url = _fresh("oasis_analytics_idem")
+    url = _fresh("shop_order_analytics_idem")
     with connect(url) as conn:
         main = store_id(conn, "residential-main")
         ob = variant_id(conn, "oasis-blend", "M", "hot")
@@ -139,7 +139,7 @@ def test_rebuilding_gives_the_same_rows_and_picks_up_changed_orders():
 
 
 def test_default_range_continues_from_the_last_built_day_with_the_lookback():
-    url = _fresh("oasis_analytics_cont")
+    url = _fresh("shop_order_analytics_cont")
     with connect(url) as conn:
         main = store_id(conn, "residential-main")
         ob = variant_id(conn, "oasis-blend", "M", "hot")
@@ -173,7 +173,7 @@ def _customers_db(name: str, n_june: int, n_may: int):
 
 
 def test_segments_under_five_people_are_not_shown_and_the_total_is_withheld():
-    url = _customers_db("oasis_analytics_c4", n_june=4, n_may=0)
+    url = _customers_db("shop_order_analytics_c4", n_june=4, n_may=0)
     with connect(url) as conn:
         result = q.customers(conn, today=TODAY)
     light = next(s for s in result["segments"] if s["segment"] == "light")
@@ -185,7 +185,7 @@ def test_segments_under_five_people_are_not_shown_and_the_total_is_withheld():
 
 
 def test_segments_with_five_or_more_people_are_shown_with_cohorts_and_the_repurchase_rate():
-    url = _customers_db("oasis_analytics_c6", n_june=6, n_may=6)
+    url = _customers_db("shop_order_analytics_c6", n_june=6, n_may=6)
     with connect(url) as conn:
         result = q.customers(conn, today=TODAY)
     segs = {s["segment"]: s["customers"] for s in result["segments"]}
@@ -200,7 +200,7 @@ def test_segments_with_five_or_more_people_are_shown_with_cohorts_and_the_repurc
 
 
 def test_the_repurchase_rate_is_shown_only_when_both_sides_have_five_people():
-    url = _customers_db("oasis_analytics_rr", n_june=5, n_may=5)  # 5 月組は 2 回（再購入）、6 月組は 1 回
+    url = _customers_db("shop_order_analytics_rr", n_june=5, n_may=5)  # 5 月組は 2 回（再購入）、6 月組は 1 回
     with connect(url) as conn:
         result = q.customers(conn, today=TODAY)
     assert result["repurchase_rate_pct"] == 50.0 and result["total_customers"] == 10
@@ -208,9 +208,9 @@ def test_the_repurchase_rate_is_shown_only_when_both_sides_have_five_people():
 
 
 def test_pseudonyms_are_keyed_hmacs_and_the_analytics_tables_hold_no_personal_columns():
-    url = _customers_db("oasis_analytics_pii", n_june=6, n_may=0)
+    url = _customers_db("shop_order_analytics_pii", n_june=6, n_may=0)
     with connect(url) as conn:
-        users = {r["id"]: r["display_name"] for r in conn.execute("SELECT id, display_name FROM users WHERE auth_user_id LIKE 'dev:oasis_analytics_pii%'")}
+        users = {r["id"]: r["display_name"] for r in conn.execute("SELECT id, display_name FROM users WHERE auth_user_id LIKE 'dev:shop_order_analytics_pii%'")}
         mapping = {r["user_id"]: r["pseudonym_id"] for r in conn.execute("SELECT user_id, pseudonym_id FROM analytics.customer_pseudonyms")}
         assert set(mapping) == set(users) and all(mapping[u] == analytics_build.pseudonym_id(KEY, u) for u in users)
         rfm = {r["pseudonym_id"] for r in conn.execute("SELECT pseudonym_id FROM analytics.customer_rfm")}
@@ -224,7 +224,7 @@ def test_pseudonyms_are_keyed_hmacs_and_the_analytics_tables_hold_no_personal_co
 
 
 def test_a_changed_key_stops_the_build_until_rekey():
-    url = _customers_db("oasis_analytics_key", n_june=6, n_may=0)
+    url = _customers_db("shop_order_analytics_key", n_june=6, n_may=0)
     with connect(url) as conn:
         before = {r["pseudonym_id"] for r in conn.execute("SELECT pseudonym_id FROM analytics.customer_pseudonyms")}
     with pytest.raises(analytics_build.KeyChanged):
@@ -241,7 +241,7 @@ def test_a_changed_key_stops_the_build_until_rekey():
 # ---- 在庫（台帳から） ----
 
 def test_stock_levels_are_rebuilt_from_the_ledger_with_reasons():
-    url = _fresh("oasis_analytics_stock")
+    url = _fresh("shop_order_analytics_stock")
     D = date(2026, 6, 8)
     def at(day, hour=12):  # 店のローカル時刻 → UTC
         return datetime(day.year, day.month, day.day, hour, 0, tzinfo=timezone(timedelta(hours=9))).astimezone(timezone.utc)
@@ -282,7 +282,7 @@ def test_stock_levels_are_rebuilt_from_the_ledger_with_reasons():
 def test_the_rfm_grid_hides_a_small_cell_and_the_smallest_remaining_one_and_keeps_empty_cells_at_zero():
     """R×F の格子: 6 人のセル（直近・F=1）、4 人のセル（45 日前・F=1）、人のいないセル。4 人のセルは隠れ、残りで最小の 6 人のセルも隠れる（補完の秘匿）。
     人のいないセルは 0 のまま。隠したセルがあるので、合計も出さない。区分（segments）も同じ集計から作るので、同じ人数が隠れる。"""
-    url = _fresh("oasis_analytics_grid")
+    url = _fresh("shop_order_analytics_grid")
     with connect(url) as conn:
         main, ob = store_id(conn, "residential-main"), variant_id(conn, "oasis-blend", "M", "hot")
         for i in range(6):
