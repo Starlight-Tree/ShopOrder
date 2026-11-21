@@ -8,6 +8,7 @@ Playwright の webServer が起動し、/health が 200 を返したら準備完
 """
 
 import os
+from urllib.parse import urlparse, urlunparse
 
 import psycopg
 import uvicorn
@@ -29,7 +30,11 @@ def prepare_database() -> str:
     admin.execute(f'DROP DATABASE IF EXISTS "{DB_NAME}" WITH (FORCE)')
     admin.execute(f'CREATE DATABASE "{DB_NAME}"')
     admin.close()
-    return admin_url.rsplit("/", 1)[0] + "/" + DB_NAME
+    # 接続先は、URL を分解して、パスだけを差し替える（文字列の rsplit では、問い合わせ部やパスの形によって、検査した DB とずれうる）
+    url = urlunparse(urlparse(admin_url)._replace(path="/" + DB_NAME))
+    if urlparse(url).path != "/" + DB_NAME:
+        raise RuntimeError("E2E の接続先の組み立てに失敗しました")
+    return url
 
 
 def main() -> None:

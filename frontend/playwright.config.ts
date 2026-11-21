@@ -3,6 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 // E2E は、使い捨ての DB（shop_order_e2e。ダミーの履歴 90 日つき）に向けた本物の API（backend/tests/e2e_server.py）と、
 // E2E 用にビルドした Next.js の画面（next start）を、別のポートで立てて、実ブラウザー（Chromium）でつなぐ。
 // 決済・配達・通知・チャットは模擬。実 API は呼ばない。ポートは開発用（3400・8400）と重ならない（3401・8401）。
+// 注意: 画面のビルドは、他の `npm run build`（scripts/verify.sh frontend など）と同じ frontend/.next に出る。E2E の実行中に、同じ作業ツリーで build を流さない。
 // 前提: TEST_DATABASE_URL（使い捨ての Postgres の管理用 URL。開発コンテナでは設定済み）と、backend/.venv（開発コンテナでは作成済み）。
 const API_PORT = Number(process.env.E2E_API_PORT ?? 8401);
 const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 3401);

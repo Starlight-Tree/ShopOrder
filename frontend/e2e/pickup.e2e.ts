@@ -1,14 +1,13 @@
 import { expect, test } from '@playwright/test';
 import { MAIN_STAFF_EMAIL, asCustomer, login, newPage } from './support/accounts';
+import { addToCart } from './support/shop';
 
 // 店頭受け取りの通し: 顧客が注文して支払う → スタッフが受付〜受け渡し → 顧客の画面が進む。
 // 単体テストでは見えない、画面 ↔ 画面のサーバー側 ↔ API ↔ DB のつながりを確かめる。
 test('店頭受け取りの注文が、受付から受け渡しまで通る', async ({ page, browser }) => {
   await asCustomer(page, 'e2e-pickup');
   // 顧客: 店を選び、カートに入れて、確認 → 確定 → 支払い（模擬）
-  await page.goto('/');
-  await page.getByRole('button', { name: '居住区本店を選ぶ' }).click();
-  await page.getByRole('button', { name: 'オアシスブレンド（S サイズ・ホット）をカートに入れる' }).click();
+  await addToCart(page, '居住区本店', 'オアシスブレンド（S サイズ・ホット）をカートに入れる');
   await page.goto('/cart');
   await expect(page.getByText('S サイズ・ホット・380 ルミ')).toBeVisible();
   await page.getByText('注文内容を確認する').click();

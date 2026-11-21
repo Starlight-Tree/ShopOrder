@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { MAIN_STAFF_EMAIL, asCustomer, login, newPage } from './support/accounts';
+import { addToCart } from './support/shop';
 
 const COURIER_EMAIL = 'courier-residential-main-1@oasis-cafe.example';
 
@@ -16,9 +17,7 @@ test('宅配の注文が、住所の登録から暗証コードでの受け渡�
   await expect(page.getByText('住所を登録しました')).toBeVisible();
 
   // 顧客: 店・品・宅配・住所・時間枠を選ぶ
-  await page.goto('/');
-  await page.getByRole('button', { name: '居住区本店を選ぶ' }).click();
-  await page.getByRole('button', { name: 'オアシスブレンド（S サイズ・ホット）をカートに入れる' }).click();
+  await addToCart(page, '居住区本店', 'オアシスブレンド（S サイズ・ホット）をカートに入れる');
   await page.goto('/cart');
   // 宅配には最低注文額（品の小計 600 ルミ）がある。380 ルミの品を 2 つにして、760 ルミにする
   await page.getByRole('button', { name: 'オアシスブレンドを 1 つ増やす' }).click();
@@ -26,7 +25,11 @@ test('宅配の注文が、住所の登録から暗証コードでの受け渡�
   await page.getByRole('button', { name: '受け取り方法を宅配にする' }).click();
   await page.getByRole('button', { name: '自宅をお届け先にする' }).click();
   await expect(page.getByRole('heading', { name: 'お届けの時間枠を選ぶ' })).toBeVisible();
-  const slot = page.locator('.shop-slots button:not([disabled])').first();
+  // 今日の枠に頼らない: 店の時刻で夜（19 時過ぎ）は、今日の枠が 1 つも無く、残りの短い枠は途中で締まる。
+  // 明日の最後の枠なら、いつ流しても選べて、テストの途中で締まらない（居住区本店は定休日が無い）
+  await page.getByRole('navigation', { name: 'お届けの日付' }).getByRole('link', { name: /^明日/ }).click();
+  await expect(page).toHaveURL(/date=/);
+  const slot = page.locator('.shop-slots button:not([disabled])').last();
   await expect(slot).toBeVisible();
   await slot.click();
   await expect(page.getByText('お届けの時間枠を選んでください。')).toHaveCount(0);
@@ -40,8 +43,6 @@ test('宅配の注文が、住所の登録から暗証コードでの受け渡�
   await expect(page.getByText('お支払いを確認しました')).toBeVisible();
   const orderUrl = page.url();
 
-  // 暗証コードは、集荷の前には出ない（集荷後だけ。配達員にだけ伝える値）
-  await expect(page.locator('.shop-pin')).toHaveCount(0);
 
   // スタッフ: 受付 → 調理 → 準備完了
   const staff = await newPage(browser);
@@ -58,6 +59,11 @@ test('宅配の注文が、住所の登録から暗証コードでの受け渡�
   await expect(dispatchCard).toBeVisible();
   await dispatchCard.getByRole('button', { name: '割り当てる' }).click();
   await expect(staff.getByRole('button', { name: '付け替える' }).first()).toBeVisible();
+
+  // 配達員が決まっても、集荷の前は暗証コードが出ない（集荷後だけ。状態の文を先に待つので、空振りで通らない）
+  await page.goto(orderUrl);
+  await expect(page.locator('.shop-status')).toContainText('配達員が決まりました');
+  await expect(page.locator('.shop-pin')).toHaveCount(0);
 
   // 配達員: 集荷 → 出発 → 到着・暗証コードで確認（間違った暗証コードは通らない）
   const courier = await newPage(browser);
