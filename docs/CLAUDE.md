@@ -10,6 +10,7 @@
 | [data-model.md](data-model.md) | テーブルと制約 |
 | [order-flow.md](order-flow.md) | 注文の状態・確定の手順・在庫の確保・宅配の決まり |
 | [chat.md](chat.md) | チャットの設計（ツール・安全・構成・評価）。確定は画面のボタンだけ |
+| [development.md](development.md) | 開発の手順（テスト・マイグレーション・ダミーデータの投入・名前の決まり・DB 改名の手順） |
 | [analytics.md](analytics.md) | 分析の作り方・画面・顧客データの作法・ダミーデータ |
 | [roadmap.md](roadmap.md) | 段階（P0〜P6）と状態 |
 | [decisions/](decisions/README.md) | 決定（ADR）。1 件 1 ファイル。決定済みのものは書き換えず、新しい ADR で置き換える |
