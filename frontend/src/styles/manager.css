@@ -164,7 +164,6 @@
 .manager-root .mg-toggle-btn[aria-pressed='true'] { background: var(--tag-bg); color: var(--tag-text); font-weight: 800; box-shadow: inset 0 -3px 0 var(--primary); }
 .manager-root .mg-card-body { min-width: 0; }
 .manager-root .mg-chart { width: 100%; min-width: 0; color: var(--mg-text); }
-.manager-root .mg-chart .recharts-wrapper { max-width: 100%; }
 .manager-root .mg-chart-loading { display: grid; place-items: center; color: var(--muted); }
 .manager-root .mg-tooltip { background: var(--surface); color: var(--text); border: 1px solid var(--mg-control-border); border-radius: 8px; padding: 8px 10px; font-size: 13.5px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); }
 .manager-root .mg-tooltip p { margin: 0 0 2px; }
