@@ -1,0 +1,12 @@
+{
+  "name": "shoporder-generate-images",
+  "private": true,
+  "type": "module",
+  "description": "メニューの写真の生成（管理用。Vertex AI。課金される）。アプリの依存とは別にしてある",
+  "scripts": {
+    "generate": "node generate.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^2.31.0"
+  }
+}

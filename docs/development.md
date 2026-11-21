@@ -31,6 +31,10 @@
 
 dev はワークスペース全体を書き込み可で持つが、`.devcontainer/`・`.git/hooks/`・`.claude/hooks/`・`.claude/settings.json` は `:ro` で重ねてある。dev の中のコードが、ホストで承認なしに動くファイル（`initializeCommand`、プロキシの許可リスト、git のフック、Claude Code のフックと許可）を書き換えられないようにするため。これらの変更はホストで行う。**残る経路:** `scripts/`（`.claude/settings.json` が `scripts/verify.sh` を承認なしで許可している）と `.vscode/` は書き込める。コンテナの中で触れた範囲は、コミットの前に差分で確かめる。`.env`・`backups/`・`.git/sensitive-terms` も、コンテナから見える。
 
+## メニューの写真
+
+メニューの写真は、Git に置く生成済みの画像（`frontend/public/images/menu/<code>.jpg`）。写真がある品の code を `frontend/src/lib/shop/menu-images.ts` に足すと、メニューのカードに出る（無い品は写真なし）。生成は課金されるので承認制。手順・認証（Vertex AI の ADC）・確認の項目は [scripts/generate-images/README.md](../scripts/generate-images/README.md)。
+
 ## テスト
 
 | 対象 | コマンド | 前提 |
