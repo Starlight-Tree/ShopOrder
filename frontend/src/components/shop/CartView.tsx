@@ -91,7 +91,7 @@ export function CartView({ data, actions }: { data: CartPageData; actions: CartA
 
       <section className="shop-panel" aria-labelledby="cart-total">
         <h2 id="cart-total">お支払い金額</h2>
-        <Totals subtotalLumi={cart.subtotal_lumi} feeLumi={cart.delivery_fee_lumi} totalLumi={cart.total_lumi} delivery={cart.fulfillment === 'delivery'} />
+        <Totals subtotalLumi={cart.subtotal_lumi} feeLumi={cart.delivery_fee_lumi} totalLumi={cart.total_lumi} delivery={cart.fulfillment === 'delivery'} feeKnown={cart.fulfillment !== 'delivery' || Boolean(cart.delivery?.zone)} />
         {freeNote ? <p className="muted">{freeNote}</p> : null}
         {blockers.length === 0 ? (
           <p>

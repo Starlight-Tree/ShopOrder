@@ -126,6 +126,10 @@ describe('カート: 送料・無料になる金額・最低注文額', () => {
     expect(within(panel).getByText('送料').nextSibling).toHaveTextContent('お届け先を選ぶと表示されます');
     expect(within(panel).queryByText('最低注文額')).toBeNull();
     expect(within(panel).getByText('お届け先').nextSibling).toHaveTextContent('未選択');
+    // 支払い金額の欄も、送料を「無料」と出さない（区画が決まるまで、送料は分からない）
+    const totals = screen.getByRole('heading', { name: 'お支払い金額' }).closest('section')!;
+    expect(within(totals).getByText('送料').nextSibling).toHaveTextContent('お届け先を選ぶと表示されます');
+    expect(within(totals).queryByText('無料')).toBeNull();
   });
 });
 
@@ -593,7 +597,9 @@ describe('注文履歴（宅配の印）', () => {
         ]}
       />,
     );
-    const [delivering, pickup, failed] = screen.getAllByRole('link');
+    const links = screen.getAllByRole('link');
+    expect(links).toHaveLength(3); // 3 件そろっていることを確かめてから取り出す（添字の結果は undefined かもしれない）
+    const [delivering, pickup, failed] = links as [HTMLElement, HTMLElement, HTMLElement];
     expect(delivering).toHaveTextContent('宅配');
     expect(delivering).toHaveTextContent('受付番号');
     expect(delivering).toHaveTextContent('配達中');
