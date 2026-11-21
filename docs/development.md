@@ -2,6 +2,35 @@
 
 入口は [README.md](../README.md)（起動の手順）。ここは、テスト・マイグレーション・ダミーデータ・名前の決まり。数字と状態は 2026-11-21 時点で、コードを読んで確かめたもの（実行して確かめたものは、そう書く）。
 
+## 開発コンテナ
+
+コードの変更・テスト・コミットは、開発コンテナ（`.devcontainer/`）のセッションで行う。ホストでやるのは、コンテナの作成・再ビルド・起動、`migrate`・`seed`・バックアップ・ログ、`git worktree`、`.devcontainer/` の編集。
+
+構成: Compose プロジェクト `shoporder` に、アプリの 4 サービス（db・api・worker・frontend）と、`dev`（開発コンテナ）・`test-db`（使い捨ての Postgres 17。tmpfs。外へ出られないネットワーク）が載る。Docker は、ホストのソケットを渡さず、専用のプロキシ（`shoporder-docker-proxy`。許可は 4 つのコンテナの start / stop / restart と、読み取りだけ）経由。名前は `shoporder-devcontainer`・`shoporder-test-db`・`shoporder-docker-proxy`、ボリュームは `shoporder-claude-config`・`shoporder-dev-venv`・`shoporder-dev-node-modules`・`shoporder-dev-next`。
+
+**初回（ホスト → コンテナ）**
+
+1. VS Code の「Reopen in Container」。`initializeCommand` が、ボリューム `shoporder-claude-config`（無ければ）とプロキシを作る。
+2. ボリュームは空で始まる。ホストの `settings.json`・`CLAUDE.md`・履歴だけを写す（認証情報と `.claude.json` は写さない。JobNavi と同じ方針）。そのあと `~/.claude/bin/sync-shared-rules.sh --apply` で共通ルールを入れ、コンテナの中で Claude Code にログインする。**写さないと、コンテナの中の Claude に、日本語での応答・承認・バックアップの規則が効かない。**
+3. コンテナの中で、1 回だけ: `cd backend && python -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.in`、`cd frontend && npm ci`（どちらも専用ボリュームに入る。ホストの作業ツリーには書かない）。
+
+**コンテナの中で行う**
+
+- `scripts/verify.sh`: `TEST_DATABASE_URL`（`test-db`）と `VERIFY_ALLOW_REMOTE_DB=1` は設定済み。`backend/.venv` が無いと、バックエンドの段は「未実行」（終了コード 2）。フロントは、スクラッチのコピーではなく `cd frontend && npm ci` を直接流す。テスト用の Postgres の `docker run` は要らない。
+- アプリの再起動: `docker restart shoporder-<db|api|worker|frontend>`。`docker compose restart <サービス>` はコンテナを ID で指定するので、通らない可能性が高い（未確認）。
+- 画面・API は、ホストのブラウザーから `localhost:3400` / `8400`。dev の `localhost` には何も無い。**ただし dev から `host.docker.internal:8400` は届く**（2026-11-21 に `/health` が 200 になるのを実測）。Docker のネットワークでは隔離してあるが、ホストの公開ポート経由では、dev は api に届く。
+
+**ホストで行う**
+
+- `docker compose run --rm migrate` / `seed`、`up --build`（プロキシがコンテナの作成を拒否する）。
+- `docker exec` での `pg_dump`（上の「マイグレーション」）。`docker logs`（CLI は inspect を呼ぶので、プロキシが拒否する）。
+- `git worktree` の作成・削除。`.git` をホストと共有しているが、ワークツリーの登録は絶対パスを持つ。コンテナの中の `git worktree prune` は、ホストのワークツリーの登録を消す。
+- `.devcontainer/` の編集と、コンテナの再ビルド・再作成。
+
+**読み取り専用で重ねたもの**（コンテナの再作成のあとに効く）
+
+dev はワークスペース全体を書き込み可で持つが、`.devcontainer/`・`.git/hooks/`・`.claude/hooks/`・`.claude/settings.json` は `:ro` で重ねてある。dev の中のコードが、ホストで承認なしに動くファイル（`initializeCommand`、プロキシの許可リスト、git のフック、Claude Code のフックと許可）を書き換えられないようにするため。これらの変更はホストで行う。**残る経路:** `scripts/`（`.claude/settings.json` が `scripts/verify.sh` を承認なしで許可している）と `.vscode/` は書き込める。コンテナの中で触れた範囲は、コミットの前に差分で確かめる。`.env`・`backups/`・`.git/sensitive-terms` も、コンテナから見える。
+
 ## テスト
 
 | 対象 | コマンド | 前提 |
