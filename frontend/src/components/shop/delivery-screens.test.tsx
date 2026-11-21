@@ -580,6 +580,17 @@ describe('進みの表示（宅配）', () => {
     expect(screen.queryByText('お届け済み')).toBeNull();
   });
 
+  it('再配達（状態が繰り返される）では、今の配達の時刻を出す。店頭は、これまでどおり最初の時刻', () => {
+    const ev = (to_status: Order['events'][number]['to_status'], at: string) => ({ to_status, at, actor_type: 'staff' as const, reason: null });
+    const events = [ev('ready', '2026-11-21T01:00:00Z'), ev('delivery_failed', '2026-11-21T02:00:00Z'), ev('ready', '2026-11-21T03:05:00Z')];
+    const { rerender } = render(<OrderStepper status="ready" events={events} fulfillment="delivery" />);
+    expect(screen.getByText('12:05')).toBeInTheDocument(); // 2 回目の ready（JST）
+    expect(screen.queryByText('10:00')).toBeNull(); // 1 回目の ready は出さない
+    rerender(<OrderStepper status="ready" events={events} />);
+    expect(screen.getByText('10:00')).toBeInTheDocument();
+    expect(screen.queryByText('12:05')).toBeNull();
+  });
+
   it('取消しは、進みを出さない', () => {
     const { container } = render(<OrderStepper status="cancelled" events={[]} fulfillment="delivery" />);
     expect(container).toBeEmptyDOMElement();

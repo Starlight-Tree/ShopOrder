@@ -94,10 +94,13 @@ export function orderSteps(status: OrderStatus, fulfillment: Fulfillment = 'pick
   });
 }
 
-/** 状態ごとの最初の時刻（events の to_status と at だけを使う） */
-export function eventTimes(events: readonly Pick<OrderEvent, 'to_status' | 'at'>[]): Partial<Record<OrderStatus, string>> {
+/**
+ * 状態ごとの時刻（events の to_status と at だけを使う）。既定は最初の時刻。
+ * latest=true は最後の時刻（events は古い順）。宅配の再配達では ready・assigned・picked_up・delivering が繰り返されるので、今の配達の時刻を出すために使う
+ */
+export function eventTimes(events: readonly Pick<OrderEvent, 'to_status' | 'at'>[], latest = false): Partial<Record<OrderStatus, string>> {
   const out: Partial<Record<OrderStatus, string>> = {};
-  for (const e of events) if (!(e.to_status in out)) out[e.to_status] = e.at;
+  for (const e of events) if (latest || !(e.to_status in out)) out[e.to_status] = e.at;
   return out;
 }
 

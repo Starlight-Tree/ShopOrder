@@ -3,7 +3,7 @@ import { formatLumi } from '../format';
 import { remainingSeconds, formatRemaining } from './countdown';
 import { devToolsEnabled, devUserFromCookie, isValidDevUser } from './dev-user';
 import { describeError, noticeText } from './errors';
-import { formatClock, formatDateTime, cartCount } from './format';
+import { formatClock, formatDateTime, cartCount, zoneFromOffset } from './format';
 import { formString, isValidPublicId, isValidToken, parseId, parseQty, parseSimulate } from './input';
 import { closedReasonText, parseCategory, unavailableReasonText, variantLabel } from './labels';
 import { cancelReasonText, eventTimes, isTerminalStatus, orderSteps, statusHeadline, statusLabel } from './order-steps';
@@ -114,6 +114,16 @@ describe('注文の状態 → 進み', () => {
       { to_status: 'paid', at: 'C' },
     ]);
     expect(t).toEqual({ placed: 'A', paid: 'B' });
+  });
+  it('latest（宅配の再配達）なら、状態ごとの最後の時刻。繰り返されない状態は同じ', () => {
+    const events = [
+      { to_status: 'placed' as const, at: 'A' },
+      { to_status: 'ready' as const, at: 'B' },
+      { to_status: 'delivery_failed' as const, at: 'C' },
+      { to_status: 'ready' as const, at: 'D' },
+    ];
+    expect(eventTimes(events, true)).toEqual({ placed: 'A', ready: 'D', delivery_failed: 'C' });
+    expect(eventTimes(events)).toEqual({ placed: 'A', ready: 'B', delivery_failed: 'C' });
   });
   it('取消しの理由: 既知の code は固定の文、未知の code は出さない、店が書いた文はそのまま', () => {
     expect(cancelReasonText('payment_declined')).toBe('お支払いに失敗したため');
@@ -265,5 +275,25 @@ describe('画面の判断', () => {
     expect(checkoutBlockers(cart({ lines: [cartLine({ available: false, unavailable_reason: 'sold_out' })] }), store())[0]).toContain('今は注文できない品');
     expect(checkoutBlockers(cart({ subtotal_lumi: 30_001, total_lumi: 30_001 }), store())[0]).toContain('30,000 ルミ');
     expect(checkoutBlockers(cart({ subtotal_lumi: 30_000, total_lumi: 30_000 }), store())).toEqual([]);
+  });
+});
+
+describe('zoneFromOffset（API と同じ時差から、時間帯の名前）', () => {
+  it('整数の時差を Etc/GMT に直す（符号が逆）。0 は UTC。先頭の + も読む', () => {
+    expect(zoneFromOffset('9')).toBe('Etc/GMT-9');
+    expect(zoneFromOffset('+9')).toBe('Etc/GMT-9');
+    expect(zoneFromOffset('-5')).toBe('Etc/GMT+5');
+    expect(zoneFromOffset('0')).toBe('UTC');
+    expect(zoneFromOffset(' 14 ')).toBe('Etc/GMT-14');
+    expect(zoneFromOffset('-12')).toBe('Etc/GMT+12');
+  });
+
+  it('API が受け付けない値（範囲外・小数・文字・空・未設定）は null', () => {
+    for (const bad of ['15', '-13', '5.5', 'abc', '', '  ', undefined]) expect(zoneFromOffset(bad)).toBeNull();
+  });
+
+  it('その時間帯で、時刻が時差どおりに出る（UTC 04:00 は、+9 なら 13:00、-5 なら 前日 23:00）', () => {
+    expect(formatClock('2026-11-22T04:00:00Z', zoneFromOffset('9')!)).toBe('13:00');
+    expect(formatDateTime('2026-11-22T04:00:00Z', zoneFromOffset('-5')!)).toBe('11/21 23:00');
   });
 });

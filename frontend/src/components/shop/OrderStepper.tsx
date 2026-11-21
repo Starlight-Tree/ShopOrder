@@ -13,7 +13,7 @@ const STATE_LABEL = { done: '完了', current: '現在', upcoming: 'これから
 export function OrderStepper({ status, events, fulfillment = 'pickup' }: { status: OrderStatus; events: OrderEvent[]; fulfillment?: Fulfillment }) {
   const steps = orderSteps(status, fulfillment);
   if (!steps) return null;
-  const times = eventTimes(events);
+  const times = eventTimes(events, fulfillment === 'delivery'); // 宅配は再配達で状態が繰り返される。今の配達の時刻を出す
   return (
     <ol
       className={`shop-steps${fulfillment === 'delivery' ? ' shop-steps-delivery' : ''}`}

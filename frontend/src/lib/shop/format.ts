@@ -1,8 +1,20 @@
 // 画面の表示用の整形。金額は ../format の formatLumi（"1,350 ルミ"）を使う。
 import type { Cart } from '../contract';
 
-/** 日時を表示する時間帯。店の営業時間の基準と合わせる必要がある（docs に定義が無いので、環境変数で変えられる） */
-export const SHOP_TIME_ZONE = process.env.SHOP_TIME_ZONE || 'Asia/Tokyo';
+/**
+ * API・worker と同じ LOCAL_UTC_OFFSET_HOURS（-12〜14 の整数。先頭の + も可）を、時間帯の名前にする。UTC+9 は "Etc/GMT-9"（符号が逆）。読めなければ null。
+ * 顧客の画面の日付・時刻を、API が日付の窓や枠を決める時差と揃えるために使う
+ */
+export function zoneFromOffset(raw: string | undefined): string | null {
+  const text = raw?.trim();
+  if (!text || !/^[+-]?\d{1,2}$/.test(text)) return null;
+  const hours = Number(text);
+  if (hours < -12 || hours > 14) return null;
+  return hours === 0 ? 'UTC' : `Etc/GMT${hours > 0 ? '-' : '+'}${Math.abs(hours)}`;
+}
+
+/** 日時を表示する時間帯。店の営業時間の基準と合わせる。SHOP_TIME_ZONE（時間帯の名前）、なければ LOCAL_UTC_OFFSET_HOURS（API と同じ時差）、なければ Asia/Tokyo */
+export const SHOP_TIME_ZONE = process.env.SHOP_TIME_ZONE || zoneFromOffset(process.env.LOCAL_UTC_OFFSET_HOURS) || 'Asia/Tokyo';
 
 function parts(iso: string, timeZone: string): Record<string, string> | null {
   const t = Date.parse(iso);
