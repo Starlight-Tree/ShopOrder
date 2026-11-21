@@ -1,0 +1,98 @@
+# 開発コンテナ（dev）とテスト用の DB（test-db）の定義。devcontainer.json の dockerComposeFile が、../docker-compose.yml（db・api・worker・frontend）に重ねて読む。
+# ホストの `docker compose up`（ルートの docker-compose.yml だけ）には、dev も test-db も含まれない。
+# 相対パスは、最初のファイル（../docker-compose.yml）のあるリポジトリ直下が基準（このファイルの場所ではない）。
+services:
+  dev:
+    build:
+      context: .devcontainer
+      dockerfile: Dockerfile
+    container_name: shoporder-devcontainer
+    # 表示用ラベル（VS Code の Container Tools のグループ。JobNavi・DocuNavi の開発コンテナと同じ）
+    labels:
+      local.ui.group: "Devcontainers"
+    init: true
+    command: sleep infinity
+    depends_on:
+      test-db:
+        condition: service_healthy
+    volumes:
+      - .:/workspaces/ShopOrder:cached
+      # 上のワークスペースは書き込み可。そのままだと、dev の中のコード（依存の導入スクリプトや、注入された指示に従う Claude）が、
+      # ホストで承認なしに動くファイルを書き換えられる。次を :ro で重ねて、dev からは読み取り専用にする。変更はホストで行う。
+      #   .devcontainer      : initializeCommand（ホストで実行）と、docker-proxy の許可リスト
+      #   .git/hooks         : ホストの git が実行する
+      #   .claude/hooks・.claude/settings.json : ホストの Claude Code が読む（settings.json は scripts/verify.sh を承認なしで許可している）
+      # 残る経路: scripts/・.vscode/ は書き込める（docs/development.md の「開発コンテナ」）。
+      - ./.devcontainer:/workspaces/ShopOrder/.devcontainer:ro
+      - ./.git/hooks:/workspaces/ShopOrder/.git/hooks:ro
+      - ./.claude/hooks:/workspaces/ShopOrder/.claude/hooks:ro
+      - ./.claude/settings.json:/workspaces/ShopOrder/.claude/settings.json:ro
+      # このプロジェクト専用のボリューム。Claude Code の認証情報・履歴が、他のプロジェクトと混ざらない。
+      - claude-config:/home/vscode/.claude
+      # 依存は、ホスト（macOS）のものと分ける。Linux 用のネイティブの依存・仮想環境をホストの作業ツリーに書かないため。
+      # Compose の frontend サービス（/app/node_modules・/app/.next）とも別のボリューム。
+      - dev-venv:/workspaces/ShopOrder/backend/.venv
+      - dev-node-modules:/workspaces/ShopOrder/frontend/node_modules
+      - dev-next:/workspaces/ShopOrder/frontend/.next
+    environment:
+      TZ: Asia/Tokyo
+      CLAUDE_CONFIG_DIR: /home/vscode/.claude
+      # 読み取りが中心のプロキシ（.devcontainer/docker-proxy/compose.yml）。shoporder-dev の中でだけ引ける名前。
+      # ホストのソケットは、この dev にはマウントしない。
+      DOCKER_HOST: tcp://shoporder-docker-proxy:2375
+      # バックエンドのテスト用。開発用の DB（db）ではなく、使い捨ての test-db を指す（テストは DROP DATABASE IF EXISTS → CREATE をする）。
+      # dev は backend-net に繋がないので、開発用の DB には届かない。scripts/verify.sh は localhost 以外のホストを既定で拒否するため、
+      # 届く先が test-db だけであることを前提に、VERIFY_ALLOW_REMOTE_DB=1 を置く。dev に別のネットワークを足すときは、この前提を見直す。
+      TEST_DATABASE_URL: postgresql://postgres@test-db:5432/postgres
+      VERIFY_ALLOW_REMOTE_DB: "1"
+    # shoporder-dev（プロキシとの通信用。外へも出られる）と shoporder-test（test-db 用。外へ出られない）だけに繋ぐ。
+    # frontend-net・backend-net には繋がない（api と開発用の db に、開発コンテナから直接届かないようにするため）。
+    networks:
+      - dev-net
+      - test-net
+
+  # バックエンドのテスト用の、使い捨ての Postgres 17。データは tmpfs（止めると消える）。認証は trust だが、test-net（internal）の外には出ない。
+  test-db:
+    image: postgres:17
+    container_name: shoporder-test-db
+    labels:
+      local.ui.group: "Devcontainers"
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks:
+      - test-net
+    healthcheck:
+      # -h 127.0.0.1: 初回の初期化中の一時サーバー（ソケットだけ待ち受ける）を、起動済みと見なさないため
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+networks:
+  # .devcontainer/docker-proxy/compose.yml が作る（devcontainer.json の initializeCommand が先に起動する）。
+  dev-net:
+    name: shoporder-dev
+    external: true
+  # dev と test-db だけが繋がる。internal: 外へも、ホストへも出られない。
+  test-net:
+    name: shoporder-test
+    internal: true
+
+volumes:
+  # このプロジェクト専用。devcontainer.json の initializeCommand が、無ければ作る（`docker volume create` は冪等）。
+  # `compose down -v` で消えないよう external にしてある。作った直後は空なので、settings.json・CLAUDE.md・履歴を写し、
+  # コンテナの中でログインする（docs/development.md の「開発コンテナ」）。
+  claude-config:
+    name: shoporder-claude-config
+    external: true
+  # 依存のキャッシュ。無ければ Compose が作る。消えても、`pip install` と `npm ci` をやり直すだけ。
+  dev-venv:
+    name: shoporder-dev-venv
+  dev-node-modules:
+    name: shoporder-dev-node-modules
+  dev-next:
+    name: shoporder-dev-next

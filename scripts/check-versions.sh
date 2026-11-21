@@ -4,9 +4,8 @@
 #   scripts/check-versions.sh
 #
 # 見るもの:
-#   Python  backend/Dockerfile の FROM python:<版>-slim、CI の python-version-file、CLAUDE.md の記述
-#   Node    docker-compose.yml の frontend の image node:<版>-slim、frontend/package.json の engines、CI の node-version-file、CLAUDE.md の記述
-# 見ないもの: 開発コンテナの Node（devcontainer は未作成。作るときに足す）。
+#   Python  backend/Dockerfile の FROM python:<版>-slim、開発コンテナの feature（.devcontainer/devcontainer.json）、CI の python-version-file、CLAUDE.md の記述
+#   Node    docker-compose.yml の frontend の image node:<版>-slim、開発コンテナの feature、frontend/package.json の engines、CI の node-version-file、CLAUDE.md の記述
 # 終了コード: 0 = 揃っている、1 = 食い違いあり。
 set -euo pipefail
 
@@ -30,10 +29,12 @@ check() { # 説明, ファイル, 固定文字列
 }
 
 check "Python $py: backend/Dockerfile" backend/Dockerfile "FROM python:${py}-slim"
+check "Python $py: 開発コンテナの feature" .devcontainer/devcontainer.json "features/python:1\": { \"version\": \"${py}\" }"
 check "Python $py: CI が .python-version を読む" .github/workflows/ci.yml "python-version-file: .python-version"
 check "Python $py: CLAUDE.md" CLAUDE.md "Python ${py}"
 
 check "Node $node: docker-compose.yml の frontend" docker-compose.yml "image: node:${node}-slim"
+check "Node $node: 開発コンテナの feature" .devcontainer/devcontainer.json "features/node:2\": { \"version\": \"${node}\" }"
 check "Node $node: frontend/package.json の engines" frontend/package.json "^${node}.0.0"
 check "Node $node: CI が .node-version を読む" .github/workflows/ci.yml "node-version-file: .node-version"
 check "Node $node: CLAUDE.md" CLAUDE.md "Node ${node}"

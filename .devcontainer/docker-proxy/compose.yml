@@ -1,0 +1,71 @@
+# 開発コンテナから Docker を触るための、ShopOrder 専用のソケットプロキシ。
+# 開発コンテナにはホストのソケットを渡さず、このプロキシ（TCP）だけに DOCKER_HOST で接続させる。
+# JobNavi・DocuNavi の docker-proxy と同じ方式（wollomatic/socket-proxy）で、書き込みは ShopOrder の 4 つのコンテナの
+# start / stop / restart だけを許す。ほかのプロジェクトのプロキシとは別のコンテナ・別のネットワークにしてある（互いの許可を広げないため）。
+#
+# 起動はホストで行う（devcontainer.json の initializeCommand が実行する。手動なら次）:
+#   docker compose -f .devcontainer/docker-proxy/compose.yml up -d
+#
+# 許可するもの（Go の正規表現。^ と $ は自動で付く。API のバージョン接頭辞 /v1.NN は任意）:
+#   GET  /_ping, /version                          Docker CLI が最初に呼ぶ
+#   GET  /containers/json                          一覧（docker ps）。環境変数は含まれない
+#   GET  /containers/<名前か ID>/logs              ログの API（`docker logs` の CLI は、先に inspect を呼ぶので Forbidden になる。ログはホストで見る）
+#   POST /containers/shoporder-(db|api|worker|frontend)/(start|stop|restart)
+#                                                  名前で指定したときだけ。docker restart shoporder-frontend など
+# 許可しない: コンテナの作成・削除（POST /containers/create、DELETE）、exec、inspect（/containers/<id>/json）、
+#   build、images・volumes・networks・events・/info、上の 4 つ以外のコンテナへの POST。
+#   したがって、`docker compose run --rm migrate` / `seed`（コンテナを作る）と、`docker exec`（バックアップの pg_dump）は、ホストで行う。
+#
+# 限界:
+#  - GET はパスでしか絞れないので、OrbStack 上のすべてのコンテナの一覧とログが見える。
+#  - `docker compose restart <サービス>` は、コンテナを ID で指定する（名前ではない）。ID のパスは名前の規則に合わないので通らない可能性が高い。
+#    ID の形（16 進）を許すと、他のプロジェクトのコンテナまで止められるので許さない。再起動は `docker restart shoporder-<名前>` を使う。
+#  - 照合はパスだけで行われ、クエリ文字列（?detachKeys= など）は許可・拒否に影響しない（2026-11-21 に、起動済みの shoporder-frontend への start で実機確認）。
+name: shoporder-dev-proxy
+
+services:
+  docker-proxy:
+    # 1.x の固定版。JobNavi・DocuNavi と同じ。更新するときは、検証をやり直す。
+    image: docker.io/wollomatic/socket-proxy:1.13.1
+    container_name: shoporder-docker-proxy
+    # 表示用ラベル
+    labels:
+      local.ui.group: "Docker-Proxies"
+    command:
+      - "-listenip=0.0.0.0"
+      - "-proxyport=2375"
+      # このネットワークに繋がるのは、このプロキシと開発コンテナだけ（ホストにポートは公開しない）。
+      # 接続元はプライベートアドレスに限る。開発コンテナの IP は起動のたびに変わるので、CIDR にする。
+      - "-allowfrom=172.16.0.0/12,192.168.0.0/16,10.0.0.0/8"
+      - '-allowGET=(/v1\.[0-9]{1,2})?/(_ping|version|containers/json|containers/[a-zA-Z0-9_.-]+/logs)'
+      - '-allowPOST=(/v1\.[0-9]{1,2})?/containers/shoporder-(db|api|worker|frontend)/(start|stop|restart)'
+      # HEAD /_ping を使うバージョンの CLI があるため（これだけ）
+      - '-allowHEAD=(/v1\.[0-9]{1,2})?/_ping'
+      - "-loglevel=${DOCKER_PROXY_LOGLEVEL:-INFO}"
+      - "-allowhealthcheck"
+    volumes:
+      # :ro はソケットのファイルの権限であって、Docker API の読み書きの制限ではない。制限は上の許可リストが行う。
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # OrbStack のソケットは root:root 0660。イメージの既定のユーザー（非 root）では開けないので、uid は非 root のまま、グループ 0 だけを足す
+    # （JobNavi・DocuNavi の docker-proxy/compose.yml と同じ）。
+    user: "65534:65534"
+    group_add:
+      - "0"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "./healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 2
+    networks:
+      - shoporder-dev
+    restart: unless-stopped
+
+networks:
+  shoporder-dev:
+    # 開発コンテナ（./docker-compose.yml の dev）がこの名前で繋ぐ。internal にはしない（開発コンテナが外へ出られなくなる）。
+    name: shoporder-dev
