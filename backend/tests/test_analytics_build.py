@@ -138,18 +138,18 @@ def test_rebuilding_gives_the_same_rows_and_picks_up_changed_orders():
         assert conn.execute("SELECT count(*) AS n FROM analytics.daily_store_hourly WHERE business_date = %s", (WED,)).fetchone()["n"] == 0
 
 
-def test_default_range_continues_from_the_last_built_day_with_a_short_lookback():
+def test_default_range_continues_from_the_last_built_day_with_the_lookback():
     url = _fresh("oasis_analytics_cont")
     with connect(url) as conn:
         main = store_id(conn, "residential-main")
         ob = variant_id(conn, "oasis-blend", "M", "hot")
         user = add_user(conn, "cont-a")
-        for d in (date(2026, 6, 1), date(2026, 6, 5), date(2026, 6, 10)):
+        for d in (date(2026, 5, 1), date(2026, 6, 5), date(2026, 6, 10)):  # 最初の注文は、遡りの外
             add_order(conn, user=user, store=main, day=d, lines=[(ob, 1)])
     first = _build(url, today=date(2026, 6, 12))  # 続きの既定: 最初の注文の日から
-    assert (first["start"], first["end"]) == (date(2026, 6, 1), date(2026, 6, 11))
-    second = _build(url, today=date(2026, 6, 15))  # 前回の最終日（6/11）の手前 2 日から、昨日まで
-    assert (second["start"], second["end"]) == (date(2026, 6, 9), date(2026, 6, 14))
+    assert (first["start"], first["end"]) == (date(2026, 5, 1), date(2026, 6, 11))
+    second = _build(url, today=date(2026, 6, 15))  # 前回の最終日（6/11）から遡りの日数ぶん手前から、昨日まで
+    assert (second["start"], second["end"]) == (date(2026, 6, 11) - timedelta(days=analytics_build.LOOKBACK_DAYS - 1), date(2026, 6, 14))
     with connect(url) as conn:
         assert conn.execute("SELECT max(business_date) AS d FROM analytics.daily_store_summary").fetchone()["d"] == date(2026, 6, 14)
 
@@ -277,3 +277,24 @@ def test_stock_levels_are_rebuilt_from_the_ledger_with_reasons():
         assert ledger == d10["on_hand_end"]
         # 営業日の行は、在庫の品目の数（14）だけある（動きのない品目も、残量の行を持つ）
         assert conn.execute("SELECT count(*) AS n FROM analytics.daily_stock_levels WHERE store_id = %s AND business_date = %s", (dome, D)).fetchone()["n"] == 14
+
+
+def test_the_rfm_grid_hides_a_small_cell_and_the_smallest_remaining_one_and_keeps_empty_cells_at_zero():
+    """R×F の格子: 6 人のセル（直近・F=1）、4 人のセル（45 日前・F=1）、人のいないセル。4 人のセルは隠れ、残りで最小の 6 人のセルも隠れる（補完の秘匿）。
+    人のいないセルは 0 のまま。隠したセルがあるので、合計も出さない。区分（segments）も同じ集計から作るので、同じ人数が隠れる。"""
+    url = _fresh("oasis_analytics_grid")
+    with connect(url) as conn:
+        main, ob = store_id(conn, "residential-main"), variant_id(conn, "oasis-blend", "M", "hot")
+        for i in range(6):
+            add_order(conn, user=add_user(conn, f"grid-recent-{i}"), store=main, day=WED, lines=[(ob, 1)])  # 最後の注文から 5 日: R=3、1 回: F=1
+        for i in range(4):
+            add_order(conn, user=add_user(conn, f"grid-lapsed-{i}"), store=main, day=date(2026, 5, 1), lines=[(ob, 1)])  # 45 日前: R=1、F=1
+    _build(url)
+    with connect(url) as conn:
+        got = q.customers(conn, today=TODAY)
+    grid = {(g["r"], g["f"]): g["customers"] for g in got["grid"]}
+    assert grid[(1, 1)] is None and grid[(3, 1)] is None  # 4 人は隠れ、残りで最小の 6 人も隠れる
+    assert all(n == 0 for cell, n in grid.items() if cell not in {(1, 1), (3, 1)})  # 人のいないセルは 0
+    assert got["total_customers"] is None
+    segments = {s["segment"]: s["customers"] for s in got["segments"]}
+    assert segments["dormant"] is None and segments["light"] is None and segments["loyal"] == 0 and segments["regular"] == 0 and segments["at_risk"] == 0

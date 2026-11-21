@@ -23,7 +23,8 @@ from app import analytics_rules as rules
 from app import clock, settings
 
 LOCK_KEY = 7_204_006
-LOOKBACK_DAYS = 3  # 前回の続きから作るとき、直近のこの日数ぶんは作り直す（確定の直後に変わった注文を拾う）
+LOOKBACK_DAYS = 15  # 前回の続きから作るとき、直近のこの日数ぶんは作り直す（確定の後に変わった注文を拾う）。宅配は枠を 7 日先まで選べ、再配達でさらに 7 日延びうるので、
+# 確定から completed まで最長で約 14 日かかる。それを超える日数にしておく（日付は確定した日。完了した日ではない）
 RFM_WINDOW_DAYS = 90  # RFM の期間（今日の手前の 90 日）
 
 _DAILY_TABLES = ("daily_store_summary", "daily_store_item_sales", "daily_store_hourly", "daily_stock_levels", "daily_stock_waste")
