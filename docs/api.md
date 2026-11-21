@@ -265,3 +265,32 @@
 | `assigned` → `cancelled` | 店 |
 
 店頭の遷移は変えていない。
+
+## 分析（P4）
+
+店長（全店）と店舗スタッフ（自店の売上・在庫）の分析。定義は [metrics.md](metrics.md)、作り方は [analytics.md](analytics.md)。応答は、`analytics` の集計表を読むだけの薄い層（確定した日は日次集計、当日は元データから都度）。**データはすべてダミー。** 画面は `frontend/app/manager`（Cookie `oasis_staff`。Path は `/manager`）。
+
+**権限**（スタッフのトークン `Authorization: Bearer`。毎回 API が確認する）
+
+| 誰 | 売上・商品・時間帯・在庫・概況 | 顧客（RFM・コホート） |
+|---|---|---|
+| 全店の店長（`role = manager`・`store_id` なし） | 全店。`?store_id=` で 1 店に絞れる | 見られる |
+| 店舗スタッフ・店に属する店長（`store_id` あり） | **自店だけ**（`store_id` を付けなくても自店。他店を指すと 404 `not_found`） | **403 `forbidden`**（顧客全体の集計で、店に分けられない） |
+| 配達員（`courier`） | 403 `forbidden` | 403 `forbidden` |
+| 顧客（トークンなし・`X-Dev-User` だけ） | 401 `unauthorized` | 401 `unauthorized` |
+
+共通: `store_id`（整数 1 以上。存在しなければ 404 `store_not_found`）。日付は営業日（ISO 8601 の日付）。金額はルミの整数。期間は、確定した日（昨日まで）。範囲外の値は 422（入力の形の誤り）。応答の `scope` は `{all_stores, store_id, store_name}`。
+
+| API | 内容 |
+|---|---|
+| `GET /api/analytics/overview?store_id=` | 今日の概況: `{scope, business_date, sales_lumi, orders, avg_ticket_lumi \| null, in_progress, open_stores, store_count, closed_reason \| null, yesterday: {business_date, state, sales_lumi \| null, orders \| null, avg_ticket_lumi \| null}}`。当日は元データから都度。1 店で今日が休業なら `closed_reason`（`temporary_closure` / `weekly_closed`） |
+| `GET /api/analytics/sales?grain=day\|week\|month&count=&store_id=` | 売上の推移。`count` の既定は日 28・週 12・月 3（上限 日 90・週 26・月 12）。`{scope, grain, from, to, points: [{start, sales_lumi \| null, orders \| null, open_days, state}], total: {sales_lumi, orders, open_days, missing_days}, previous: {from, to}, comparison}`。`state` は `open`（営業日。売上 0 を含む）/ `closed`（休業。値は null）/ `not_built`（未集計。null）/ `partial`（一部の店が未集計。null）。`comparison` は `{state: "ok", previous_sales_lumi, change_pct}` か `{state: "not_comparable", reason, message}`（`reason`: `previous_missing` / `weekday_mismatch` / `open_days_mismatch` / `previous_zero`）。期間は、昨日までに確定した日・週・月 |
+| `GET /api/analytics/products?days=&store_id=` | 商品別（ABC）。`days` は 7〜90（既定 28）。`{scope, from, to, days, totals: {sales_lumi, qty, cups}, items: [{item_id, code, name, category, qty, sales_lumi, share_pct, cum_share_pct, abc}]}`。売上の大きい順 |
+| `GET /api/analytics/hourly?days=&store_id=` | 曜日 × 時間帯の注文数。`{scope, from, to, days, hours: [8, 9, …], cells: [{weekday (1 = 月 … 7 = 日), hour, orders, sales_lumi}], store_days: [{weekday, store_days}], max_orders}`。注文のあるセルだけ |
+| `GET /api/analytics/stock?store_id=` | 在庫。`{scope, use_from, use_to, waste_from, waste_to, items: [{item_id, code, name, kind, unit, on_hand, reserved, avg_daily_use, days_of_cover \| null, gap_to_reorder, reorder_point, low_stores, store_count, low}], waste: [{item_id, code, name, unit, total, by_reason: {expired, damaged, quality, other}, waste_rate_pct}]}`。全店のときは、品目ごとに店をまとめる（残量・消費は合計、残日数・発注点との差は最も厳しい店） |
+| `GET /api/analytics/customers` | 顧客（全店の店長だけ）。`{as_of, min_cell: 5, total_customers \| null, segments: [{segment, label, customers \| null, suppressed}], grid: [{r, f, customers \| null, suppressed}], repurchase_rate_pct \| null, avg_orders \| null, avg_spend_lumi \| null, at_risk_customers \| null, cohorts: {rows: [{cohort, size \| null, suppressed, includes_existing, cells: [{offset, customers \| null, rate_pct \| null, suppressed, in_progress}]}], max_offset}}`。**人数のセルは 5 人未満が `null`**（`suppressed: true`）。隠したセルがあれば `total_customers` も `null`。仮名 ID・氏名・メールは含まない |
+
+### 状態（2026-11-21）
+
+バックエンド・画面とも実装した（店頭受け取りだけ。宅配の分析は P2 の後）。集計の作成は `python -m app.analytics_build`（[metrics.md](metrics.md)）。ダミーの履歴は `DEMO_DATA=allow python -m app.seed_demo --reset --history`。**この節のエンドポイントは、API の約束としては新設**（P1 の契約を変えていない）。
+
