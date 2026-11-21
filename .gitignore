@@ -12,6 +12,10 @@ __pycache__/
 .env.*
 !.env.example
 
+# E2E（Playwright）の出力（失敗時のトレース・HTML レポート）
+frontend/test-results/
+frontend/playwright-report/
+
 # 動作確認のスクリーンショットなど（拡張子では無視しない）
 .playwright-mcp/
 
