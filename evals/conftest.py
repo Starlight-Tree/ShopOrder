@@ -24,7 +24,8 @@ def _eval_defaults(monkeypatch):
     from app import clock
 
     monkeypatch.setenv("ORDER_HOURS_CHECK", "off")
-    for name in ("APP_ENV", "AUTH_MODE", "LOCAL_UTC_OFFSET_HOURS", "CHAT_MODEL", "CHAT_RETENTION_DAYS"):
+    monkeypatch.setenv("APP_ENV", "test")  # 開発専用の設定（AUTH_MODE=dev など）は、development / test と明示された環境だけで許される
+    for name in ("AUTH_MODE", "LOCAL_UTC_OFFSET_HOURS", "CHAT_MODEL", "CHAT_RETENTION_DAYS"):
         monkeypatch.delenv(name, raising=False)
     yield
     clock.freeze(None)
@@ -37,6 +38,8 @@ def client():
     from fastapi.testclient import TestClient
 
     url = _new_database(EVAL_DB)
+    os.environ["APP_ENV"] = "test"  # セッションの fixture は、関数単位の _eval_defaults より先に動く（lifespan の起動検査を通すため）
+    os.environ["DEMO_DATA"] = "allow"
     os.environ["DATABASE_URL"] = url
     os.environ["DEMO_STAFF_PASSWORD"] = "eval-staff-pass"
     from app import migrate, seed_demo

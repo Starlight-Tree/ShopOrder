@@ -52,7 +52,7 @@ def apply_setup(name: str | None, shop, headers: dict, monkeypatch):
         return lambda: None
     if name == "past_orders":
         for _, items in PAST_ORDERS:
-            shop.order(headers, "residential-main", [(shop.variant(code, size, temp), qty) for code, size, temp, qty in items])
+            shop.paid_order(headers, "residential-main", [(shop.variant(code, size, temp), qty) for code, size, temp, qty in items])  # 未払いの上限（2 件）に当たらないよう、払っておく
         return lambda: None
     if name == "one_order":
         shop.order(headers, "residential-main", [(shop.variant("cheesecake"), 1)])
