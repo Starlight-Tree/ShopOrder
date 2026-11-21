@@ -16,7 +16,7 @@
 
 **コンテナの中で行う**
 
-- `scripts/verify.sh`: `TEST_DATABASE_URL`（`test-db`）と `VERIFY_ALLOW_REMOTE_DB=1` は設定済み。`backend/.venv` が無いと、バックエンドの段は「未実行」（終了コード 2）。フロントは、スクラッチのコピーではなく `cd frontend && npm ci` を直接流す。テスト用の Postgres の `docker run` は要らない。
+- `scripts/verify.sh`: `TEST_DATABASE_URL`（`test-db`）と `VERIFY_ALLOW_REMOTE_DB=test-db` は設定済み。`backend/.venv` が無いと、バックエンドの段は「未実行」（終了コード 2）。フロントは、スクラッチのコピーではなく `cd frontend && npm ci` を直接流す。テスト用の Postgres の `docker run` は要らない。
 - アプリの再起動: `docker restart shoporder-<db|api|worker|frontend>`。`docker compose restart <サービス>` はコンテナを ID で指定するので、通らない可能性が高い（未確認）。
 - 画面・API は、ホストのブラウザーから `localhost:3400` / `8400`。dev の `localhost` には何も無い。**ただし dev から `host.docker.internal:8400` は届く**（2026-11-21 に `/health` が 200 になるのを実測）。Docker のネットワークでは隔離してあるが、ホストの公開ポート経由では、dev は api に届く。
 
@@ -42,9 +42,9 @@ dev はワークスペース全体を書き込み可で持つが、`.devcontaine
 | バックエンド | `cd backend && TEST_DATABASE_URL=<URL> .venv/bin/python -m pytest -q -rs` | 使い捨ての Postgres 17。`backend/.venv` に `requirements.txt` と `requirements-dev.in` を入れる |
 | 評価（チャット） | `cd evals && TEST_DATABASE_URL=<URL> ../backend/.venv/bin/python -m pytest -q` | 同上。実 API は呼ばない。**CI にも `scripts/verify.sh` にも、まだ入っていない**（[evals/README.md](../evals/README.md)） |
 | フロントエンド | `cd frontend && npm ci && npm test && npm run build && npm run typecheck` | Node 24。`typecheck` は `build` の後 |
-| まとめて | `scripts/verify.sh [backend\|frontend\|lint\|all]` | 依存は先に入れておく（インストールはしない）。バックエンドの段は、`TEST_DATABASE_URL` を環境変数で渡さないか、そのホストが localhost・127.0.0.1・[::1] 以外だと「未実行」（`VERIFY_ALLOW_REMOTE_DB=1` で解除）。終了コード: 0 = すべて合格 / 1 = 失敗あり / 2 = 未実行がある / 64 = 引数の誤り |
+| まとめて | `scripts/verify.sh [backend\|frontend\|lint\|all]` | 依存は先に入れておく（インストールはしない）。バックエンドの段は、`TEST_DATABASE_URL` を環境変数で渡さないか、そのホストが localhost・127.0.0.1・[::1] 以外だと「未実行」（使い捨てのサーバーなら、`VERIFY_ALLOW_REMOTE_DB` にそのホスト名を入れて解除。完全一致）。終了コード: 0 = すべて合格 / 1 = 失敗あり / 2 = 未実行がある / 64 = 引数の誤り |
 
-- `TEST_DATABASE_URL` が指すサーバーでは、テスト用の DB を `DROP DATABASE IF EXISTS` → `CREATE` で作り直す。**使い捨てのサーバーに向ける。** 無いと、DB を使うテストは飛ばされる（CI は、スキップが 1 件でもあれば落とす）。
+- `TEST_DATABASE_URL` が指すサーバーでは、テスト用の DB を `DROP DATABASE IF EXISTS` → `CREATE` で作り直す。**使い捨てのサーバーに向ける。** 消す前に、`backend/tests/guards.py` が、ホスト（`test-db`・`localhost`・`127.0.0.1`・`::1` だけ）と DB 名（`shop_order_*` だけ）を完全一致で検査し、外れれば止まる（`evals/` も同じ）。無いと、DB を使うテストは飛ばされる（CI は、スキップが 1 件でもあれば落とす）。
 - 使い捨ての Postgres の例: `docker run -d --rm --name shoporder-test-pg -p 127.0.0.1:55432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17`（URL は `postgresql://postgres@127.0.0.1:55432/postgres`）。
 - ホストの `node_modules` は、Linux 用のことがある。動かなければ、スクラッチのコピーで `npm ci` して流す（`scripts/verify.sh` の冒頭）。
 

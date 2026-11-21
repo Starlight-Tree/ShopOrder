@@ -16,7 +16,8 @@
 #
 # 環境変数:
 #   TEST_DATABASE_URL  backend に必須（使い捨ての Postgres 17。DROP DATABASE IF EXISTS → CREATE をするので、テスト用のサーバーに向ける）。
-#                      ホストが localhost / 127.0.0.1 / ::1 でなければ流さない（VERIFY_ALLOW_REMOTE_DB=1 で解除）
+#                      ホストが localhost / 127.0.0.1 / ::1 でなければ流さない。使い捨てのサーバーなら、
+#                      VERIFY_ALLOW_REMOTE_DB にそのホスト名を入れる（完全一致。開発コンテナは test-db。1 などの「全部許す」値は効かない）
 #   PYTHON             Python の実行ファイル（既定は backend/.venv/bin/python）
 #
 # 流せない段は「未実行」と出す。合格とは数えない。失敗しても残りの段は流し、最後にまとめて出す。
@@ -54,8 +55,8 @@ if wants backend; then
     skipped+=("backend: TEST_DATABASE_URL が未設定")
   elif [[ ! -x "$py" && ! -x "$root/$py" ]]; then
     skipped+=("backend: $py が無い（backend/.venv を作る）")
-  elif [[ "$host" != localhost && "$host" != 127.0.0.1 && "$host" != "[::1]" && "${VERIFY_ALLOW_REMOTE_DB:-}" != 1 ]]; then
-    skipped+=("backend: TEST_DATABASE_URL のホストが localhost ではない（テスト用のサーバー以外へは流さない）")
+  elif [[ "$host" != localhost && "$host" != 127.0.0.1 && "$host" != "[::1]" && ( -z "$host" || "${VERIFY_ALLOW_REMOTE_DB:-}" != "$host" ) ]]; then
+    skipped+=("backend: TEST_DATABASE_URL のホストが localhost ではない（テスト用のサーバー以外へは流さない。使い捨てなら VERIFY_ALLOW_REMOTE_DB にそのホスト名を入れる）")
   else
     case "$py" in /*) abspy="$py" ;; *) abspy="$root/$py" ;; esac
     ( cd backend && "$abspy" -m pytest -q -rs ) >"$log" 2>&1

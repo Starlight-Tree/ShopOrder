@@ -4,14 +4,17 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from tests.guards import assert_disposable_target
+
 # TEST_DATABASE_URL が無ければ、Postgres が要るテストは飛ばす（使い捨ての Postgres の、管理用の URL を渡す）
 TEST_URL = os.environ.get("TEST_DATABASE_URL")
 
 
 def new_database(name: str) -> str:
-    """空の DB を作り直して、その URL を返す。"""
+    """空の DB を作り直して、その URL を返す。消す前に、接続先（使い捨てのサーバーだけ）と DB 名（shop_order_*）を完全一致で検査する。"""
     import psycopg
 
+    assert_disposable_target(TEST_URL, name)
     admin = psycopg.connect(TEST_URL, autocommit=True)
     admin.execute(f'DROP DATABASE IF EXISTS "{name}"')
     admin.execute(f'CREATE DATABASE "{name}"')

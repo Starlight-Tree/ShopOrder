@@ -42,9 +42,11 @@ services:
       DOCKER_HOST: tcp://shoporder-docker-proxy:2375
       # バックエンドのテスト用。開発用の DB（db）ではなく、使い捨ての test-db を指す（テストは DROP DATABASE IF EXISTS → CREATE をする）。
       # dev は backend-net に繋がないので、開発用の DB には届かない。scripts/verify.sh は localhost 以外のホストを既定で拒否するため、
-      # 届く先が test-db だけであることを前提に、VERIFY_ALLOW_REMOTE_DB=1 を置く。dev に別のネットワークを足すときは、この前提を見直す。
+      # 許すホスト名（完全一致）として test-db だけを置く（1 のような「全部許す」値は効かない）。テスト側も、DB を消す前に
+      # backend/tests/guards.py が、ホスト（test-db・localhost のみ）と DB 名（shop_order_*）を完全一致で検査する。
+      # dev に別のネットワークを足すときは、この前提を見直す。
       TEST_DATABASE_URL: postgresql://postgres@test-db:5432/postgres
-      VERIFY_ALLOW_REMOTE_DB: "1"
+      VERIFY_ALLOW_REMOTE_DB: "test-db"
     # shoporder-dev（プロキシとの通信用。外へも出られる）と shoporder-test（test-db 用。外へ出られない）だけに繋ぐ。
     # frontend-net・backend-net には繋がない（api と開発用の db に、開発コンテナから直接届かないようにするため）。
     networks:
@@ -52,6 +54,7 @@ services:
       - test-net
 
   # バックエンドのテスト用の、使い捨ての Postgres 17。データは tmpfs（止めると消える）。認証は trust だが、test-net（internal）の外には出ない。
+  # tmpfs は 1 GiB で頭打ち（コンテナのメモリに数えられる。テストの DB は固定の名前で作り直すので、数は増えない）。足りなければ、ここを上げる。
   test-db:
     image: postgres:17
     container_name: shoporder-test-db
@@ -60,7 +63,7 @@ services:
     environment:
       POSTGRES_HOST_AUTH_METHOD: trust
     tmpfs:
-      - /var/lib/postgresql/data
+      - /var/lib/postgresql/data:size=1g
     networks:
       - test-net
     healthcheck:

@@ -4,6 +4,8 @@ import os
 
 import pytest
 
+from tests.guards import assert_disposable_target  # backend/tests（pytest.ini の pythonpath）
+
 TEST_URL = os.environ.get("TEST_DATABASE_URL")
 EVAL_DB = "shop_order_eval"
 
@@ -11,6 +13,7 @@ EVAL_DB = "shop_order_eval"
 def _new_database(name: str) -> str:
     import psycopg
 
+    assert_disposable_target(TEST_URL, name)  # 消す前に、接続先と DB 名を完全一致で検査する
     admin = psycopg.connect(TEST_URL, autocommit=True)
     admin.execute(f'DROP DATABASE IF EXISTS "{name}"')
     admin.execute(f'CREATE DATABASE "{name}"')
