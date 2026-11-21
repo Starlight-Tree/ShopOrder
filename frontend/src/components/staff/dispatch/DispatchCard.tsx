@@ -103,7 +103,7 @@ export function DispatchCard({ order, couriers, provider, now, utcOffsetHours, s
   const retry = attemptLabel(delivery.attempt);
   const failure = failureLabel(delivery.failure_reason);
   const canRedeliver = allowed.includes('redeliver');
-  const canMock = canMockAdvance(provider, order.status);
+  const canMock = canMockAdvance(provider, order.status, order.suggestion);
   const canCancel = allowed.includes('cancel');
 
   return (

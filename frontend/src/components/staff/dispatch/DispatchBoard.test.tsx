@@ -282,6 +282,18 @@ describe('操作ボタン（allowed_actions と provider）', () => {
     expect(within(card(4)).queryByRole('button', { name: '模擬で 1 つ進める' })).toBeNull();
   });
 
+  it('割り当て待ちで提案が無い（勤務中の配達員がいない）注文には、模擬のボタンを出さない（押しても no_courier_available になる）', () => {
+    setup({
+      board: {
+        provider: 'mock',
+        couriers: [courier({ is_on_duty: false })],
+        orders: [dispatchOrder({ public_id: 'A0000001', pickup_no: 1, suggestion: null }), dispatchOrder({ public_id: 'A0000002', pickup_no: 2 })],
+      },
+    });
+    expect(within(card(1)).queryByRole('button', { name: '模擬で 1 つ進める' })).toBeNull();
+    expect(within(card(2)).getByRole('button', { name: '模擬で 1 つ進める' })).toBeInTheDocument();
+  });
+
   it('provider が mock でなければ、模擬のボタンはどこにも出ない', () => {
     setup({
       board: {
@@ -469,6 +481,21 @@ describe('他の人が先に操作した（409）・二重送信・例外', () =
     expect(onAssign).toHaveBeenCalledTimes(1);
     await act(async () => release(done()));
     expect(within(card(1)).getByRole('button', { name: '割り当てる' })).toBeEnabled();
+  });
+
+  it('再描画の前（busy がまだ反映されない間）に同じ操作が 2 回起きても、onAssign は 1 回だけ（inFlight の ref が止める）', async () => {
+    let release: (r: DeliveryOutcome) => void = () => {};
+    const onAssign = vi.fn(() => new Promise<DeliveryOutcome>((resolve) => (release = resolve)));
+    setup({ onAssign });
+    const form = screen.getByRole('button', { name: '割り当てる' }).closest('form')!;
+    // 外側の act の中では、状態の更新が終わるまで再描画しない = disabled が付く前に 2 回目が入る
+    act(() => {
+      fireEvent.submit(form);
+      fireEvent.submit(form);
+    });
+    expect(onAssign).toHaveBeenCalledTimes(1);
+    await act(async () => release(done()));
+    expect(screen.getByRole('button', { name: '割り当てる' })).toBeEnabled();
   });
 
   it('Server Action が例外を投げても、固定の文を出す（例外の文面は出さない）', async () => {

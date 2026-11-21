@@ -140,6 +140,8 @@ services:
     working_dir: /app
     environment:
       API_BASE_URL: "http://api:8000"
+      # 宅配の枠の時刻（配車ボード・調理ボード）を、API と同じ店のローカル時刻で出す（api・worker と同じ値）
+      LOCAL_UTC_OFFSET_HOURS: "${LOCAL_UTC_OFFSET_HOURS:-9}"
     volumes:
       - ./frontend:/app
       # node_modules と .next は、ホストのものと分ける（ネイティブの依存が OS ごとに違うため）

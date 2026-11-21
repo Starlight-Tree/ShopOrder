@@ -226,7 +226,19 @@ describe('店の選択（店長）と自動更新', () => {
 
 describe('宅配の注文（調理ボードに出る分）', () => {
   // 調理ボードの API は、宅配の注文にも delivery を付ける（contract.ts の StaffOrder は店頭だけの型なので、形を合わせて渡す）
-  const deliveryOrder = (over: Parameters<typeof dispatchOrder>[0] = {}) => dispatchOrder({ placed_at: '2026-11-21T02:54:00Z', ...over }) as unknown as StaffOrder;
+  // 注文の骨格は店頭の order()（調理ボードの StaffOrder）で、宅配の項目（delivery）だけ dispatchOrder から借りる
+  const deliveryOrder = (over: NonNullable<Parameters<typeof dispatchOrder>[0]> & { placed_at?: string } = {}) => {
+    const { placed_at = '2026-11-21T02:54:00Z', ...rest } = over;
+    const d = dispatchOrder(rest);
+    const base = order({
+      public_id: d.public_id,
+      pickup_no: d.pickup_no,
+      status: d.status as StaffOrder['status'],
+      allowed_actions: d.allowed_actions as StaffOrder['allowed_actions'],
+      placed_at,
+    });
+    return { ...base, fulfillment: 'delivery', delivery: d.delivery } as unknown as StaffOrder;
+  };
 
   it('「宅配」の印・配達の状態・枠の時刻を出す。店頭の注文には出さない', () => {
     renderBoard({ orders: [deliveryOrder({ public_id: 'A0000001', pickup_no: 1 }), order({ public_id: 'A0000002', pickup_no: 2 })] });
@@ -265,6 +277,23 @@ describe('宅配の注文（調理ボードに出る分）', () => {
     const card = screen.getByRole('article', { name: '受け取り番号 12' });
     expect(within(card).getAllByRole('button').map((b) => b.textContent)).toEqual(['受ける', '取消し']);
     expect(within(card).queryByRole('link')).toBeNull();
+  });
+
+  it('配達の状態の印は、割り当てが始まる ready から出す。受付〜調理中の「割り当て待ち」（delivery.status = pending）は出さない', () => {
+    renderBoard({
+      orders: [
+        deliveryOrder({ public_id: 'A0000001', pickup_no: 1, status: 'paid', allowed_actions: ['accept', 'cancel'], delivery: { status: 'pending' } }),
+        deliveryOrder({ public_id: 'A0000002', pickup_no: 2, status: 'preparing', allowed_actions: ['ready', 'cancel'], delivery: { status: 'pending' } }),
+        deliveryOrder({ public_id: 'A0000003', pickup_no: 3, status: 'ready', allowed_actions: ['assign', 'cancel'], delivery: { status: 'pending' } }),
+      ],
+    });
+    for (const no of [1, 2]) {
+      const c = screen.getByRole('article', { name: `受け取り番号 ${no}` });
+      expect(within(c).getByText('宅配')).toBeInTheDocument();
+      expect(within(c).queryByText('割り当て待ち')).toBeNull();
+      expect(within(c).getByText(/^枠 /)).toBeInTheDocument();
+    }
+    expect(within(screen.getByRole('article', { name: '受け取り番号 3' })).getByText('割り当て待ち', { selector: '.tag' })).toBeInTheDocument();
   });
 
   it('宅配の注文は、「注文から 10 分超」で強調しない（枠の時刻で動くため）。店頭の注文は従来どおり', () => {

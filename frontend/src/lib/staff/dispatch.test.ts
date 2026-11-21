@@ -84,6 +84,14 @@ describe('parseOffsetHours（LOCAL_UTC_OFFSET_HOURS）', () => {
     expect(parseOffsetHours('14')).toBe(14);
   });
 
+  it('先頭の + も受ける（API の int("+5") と同じ。黙って 9 に倒さない）', () => {
+    expect(parseOffsetHours('+5')).toBe(5);
+    expect(parseOffsetHours(' +14 ')).toBe(14);
+    expect(parseOffsetHours('+15')).toBe(9);
+    expect(parseOffsetHours('+')).toBe(9);
+    expect(parseOffsetHours('+-5')).toBe(9);
+  });
+
   it('範囲（-12〜14）の外・数でないもの・未設定は、既定（9）にする', () => {
     expect(DEFAULT_UTC_OFFSET_HOURS).toBe(9);
     for (const bad of ['15', '-13', '99', 'abc', '', '  ', '9.5', '1e1', '--1', null, undefined]) {
@@ -132,6 +140,12 @@ describe('slotLabel', () => {
   it('now が読めないときは、日付を決められないので、範囲だけ返す', () => {
     expect(slotLabel(slot('2026-11-22'), 'いま', 9)).toBe('13:00〜13:30');
   });
+
+  it('枠の時刻が読めないときは、読めない側が空になる（"〜" だけ・"13:00〜" だけ）。画面では slotText を使う', () => {
+    expect(slotLabel({ starts_at: '', ends_at: '' }, NOW, 9)).toBe('〜');
+    expect(slotLabel({ starts_at: '2026-11-21T04:00:00Z', ends_at: '' }, NOW, 9)).toBe('13:00〜');
+    expect(slotLabel({ starts_at: 'あした', ends_at: '2026-11-21T04:30:00Z' }, NOW, 9)).toBe('〜13:30');
+  });
 });
 
 describe('slotText（画面で使う枠の文）', () => {
@@ -139,8 +153,10 @@ describe('slotText（画面で使う枠の文）', () => {
     expect(slotText({ starts_at: '2026-11-21T04:00:00Z', ends_at: '2026-11-21T04:30:00Z' }, NOW, 9)).toBe('13:00〜13:30');
   });
 
-  it('開始が読めなければ「時刻不明」（"〜" だけを出さない）', () => {
+  it('開始・終了のどちらかが読めなければ「時刻不明」（"〜" だけ・"13:00〜" だけを出さない）', () => {
     expect(slotText({ starts_at: '', ends_at: '' }, NOW, 9)).toBe('時刻不明');
+    expect(slotText({ starts_at: '2026-11-21T04:00:00Z', ends_at: '' }, NOW, 9)).toBe('時刻不明');
+    expect(slotText({ starts_at: 'あした', ends_at: '2026-11-21T04:30:00Z' }, NOW, 9)).toBe('時刻不明');
   });
 });
 
@@ -251,12 +267,19 @@ describe('deliveryOf（調理ボードの注文から、宅配の情報を読む
 });
 
 describe('canMockAdvance（模擬で 1 つ進める）', () => {
+  const SUGGESTION = { courier_id: 7, courier_name: 'ラシード', minutes: 0 };
+
   it('配達の提供者が mock で、進められる状態のときだけ', () => {
-    for (const s of ['ready', 'assigned', 'picked_up', 'delivering']) expect(canMockAdvance('mock', s)).toBe(true);
-    for (const s of ['delivery_failed', 'completed', 'cancelled', 'paid']) expect(canMockAdvance('mock', s)).toBe(false);
+    for (const s of ['ready', 'assigned', 'picked_up', 'delivering']) expect(canMockAdvance('mock', s, SUGGESTION)).toBe(true);
+    for (const s of ['delivery_failed', 'completed', 'cancelled', 'paid']) expect(canMockAdvance('mock', s, SUGGESTION)).toBe(false);
   });
 
   it('mock 以外は、どの状態でも出さない', () => {
-    for (const s of ['ready', 'assigned', 'picked_up', 'delivering']) expect(canMockAdvance('inhouse', s)).toBe(false);
+    for (const s of ['ready', 'assigned', 'picked_up', 'delivering']) expect(canMockAdvance('inhouse', s, SUGGESTION)).toBe(false);
+  });
+
+  it('ready は提案の配達員を割り当てるので、提案が無い（勤務中の配達員がいない）ときは出さない。他の状態は提案に依らない', () => {
+    expect(canMockAdvance('mock', 'ready', null)).toBe(false);
+    for (const s of ['assigned', 'picked_up', 'delivering']) expect(canMockAdvance('mock', s, null)).toBe(true);
   });
 });

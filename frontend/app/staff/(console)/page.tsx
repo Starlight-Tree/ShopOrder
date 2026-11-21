@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { ApiUnavailable } from '../../../src/components/staff/Notices';
 import { OrderBoard } from '../../../src/components/staff/OrderBoard';
+import { parseOffsetHours } from '../../../src/lib/staff/dispatch';
 import { loadOrders } from '../../../src/lib/staff/loaders';
 import { MSG } from '../../../src/lib/staff/messages';
 import { parseStoreParam } from '../../../src/lib/staff/orders';
@@ -29,6 +30,7 @@ export default async function BoardPage({ searchParams }: Props) {
         orders={orders.state === 'ok' ? orders.data : null}
         errorMessage={orders.state === 'forbidden' ? MSG.forbidden : orders.state === 'error' && orders.unreachable ? MSG.unreachable : MSG.generic}
         now={new Date().toISOString()}
+        utcOffsetHours={parseOffsetHours(process.env.LOCAL_UTC_OFFSET_HOURS)}
         stores={stores}
         showStoreSelect={allStores && stores !== null}
         selectedStoreId={selectedStoreId}

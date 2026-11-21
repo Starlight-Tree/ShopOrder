@@ -70,6 +70,43 @@ describe('loadDispatchBoard', () => {
     }
   });
 
+  it('描けない行は捨てる: 区画が無い配達・品目が null・店名が無い・乗り物が無い配達員（描画で例外になるため）', async () => {
+    const base = dispatchOrder({ public_id: 'BASE0001' });
+    const noZone = { ...base, public_id: 'NOZONE01', delivery: { ...base.delivery, zone: undefined } };
+    const nullItem = { ...base, public_id: 'NULLITEM', items: [null] };
+    const noStoreName = { ...base, public_id: 'NOSTORE1', store: { id: 1 } };
+    const noEnd = { ...base, public_id: 'NOENDAT1', delivery: { ...base.delivery, slot: { id: 41, starts_at: base.delivery.slot.starts_at } } };
+    const noVehicle = { ...courier({ id: 8 }), vehicle: undefined };
+    stubFetch(jsonResponse(200, board({ orders: [base, noZone, nullItem, noStoreName, noEnd], couriers: [courier({ id: 7 }), noVehicle] })));
+    const res = await loadDispatchBoard('t', { storeId: null });
+    expect(res.state === 'ok' && res.data.orders.map((o) => o.public_id)).toEqual(['BASE0001']);
+    expect(res.state === 'ok' && res.data.couriers.map((c) => c.id)).toEqual([7]);
+  });
+
+  it('返す値は、画面が使う項目だけ。API が住所・暗証コード・電話・氏名などを誤って返しても、ブラウザーへ渡る props に残らない', async () => {
+    const leaky = {
+      ...dispatchOrder({ public_id: 'LEAKY001' }),
+      address: { label: '自宅', line: '岩山区 7-3-1 ヘリオス荘 204' },
+      pin: '4821',
+      phone: '090-0000-0000',
+      customer_name: 'ザーハード・ルミ',
+      events: [{ to_status: 'ready', note: '内部メモ' }],
+      delivery: { ...dispatchOrder().delivery, address: { line: '岩山区 7-3-1' }, pin: '4821', courier: { id: 7, name: 'ラシード', phone: '080-1111-2222' } },
+      items: [{ name: 'オアシスブレンド', size: 'M', temperature: 'hot', qty: 2, unit_price_lumi: 450, memo: 'メモ' }],
+      suggestion: { courier_id: 7, courier_name: 'ラシード', minutes: 0, phone: '080-1111-2222' },
+    };
+    stubFetch(jsonResponse(200, board({ orders: [leaky], couriers: [{ ...courier(), phone: '080-1111-2222', home_address: '遺跡区 1-1' }] })));
+    const res = await loadDispatchBoard('t', { storeId: null });
+    expect(res.state).toBe('ok');
+    const json = JSON.stringify(res.state === 'ok' ? res.data : null);
+    for (const secret of ['岩山区', '4821', '090-0000', 'ザーハード・ルミ', '内部メモ', '080-1111', '遺跡区', 'unit_price_lumi', 'メモ']) expect(json).not.toContain(secret);
+    // 必要な項目は残る
+    if (res.state === 'ok') {
+      expect(res.data.orders[0]).toEqual(dispatchOrder({ public_id: 'LEAKY001', delivery: { courier: { id: 7, name: 'ラシード' } } }));
+      expect(res.data.couriers[0]).toEqual(courier());
+    }
+  });
+
   it('応答の形が違う（orders・couriers が配列でない・オブジェクトでない）なら error（接続の不調ではない）', async () => {
     stubFetch(jsonResponse(200, { provider: 'mock' }), jsonResponse(200, []), jsonResponse(200, null), jsonResponse(200, board({ orders: 'x' })));
     for (let i = 0; i < 4; i++) expect(await loadDispatchBoard('t', { storeId: null })).toEqual({ state: 'error', unreachable: false });

@@ -35,9 +35,9 @@ export function groupDispatch(orders: readonly DispatchOrder[]): Record<Dispatch
 
 export const DEFAULT_UTC_OFFSET_HOURS = 9;
 
-/** 環境変数 LOCAL_UTC_OFFSET_HOURS（API と同じ名前）の値 → 整数の時差。読めない・範囲外（-12〜14 の外）は既定の 9 */
+/** 環境変数 LOCAL_UTC_OFFSET_HOURS（API と同じ名前）の値 → 整数の時差。先頭の + は受ける（API の int() と同じ）。読めない・範囲外（-12〜14 の外）は既定の 9 */
 export function parseOffsetHours(raw: string | null | undefined): number {
-  if (raw === null || raw === undefined || !/^-?\d{1,2}$/.test(raw.trim())) return DEFAULT_UTC_OFFSET_HOURS;
+  if (raw === null || raw === undefined || !/^[+-]?\d{1,2}$/.test(raw.trim())) return DEFAULT_UTC_OFFSET_HOURS;
   const n = Number(raw.trim());
   return n >= -12 && n <= 14 ? n : DEFAULT_UTC_OFFSET_HOURS;
 }
@@ -134,17 +134,21 @@ export function deliveryOf(order: object): StaffDelivery | null {
   return d as StaffDelivery;
 }
 
-/** 枠の文。時刻が読めなければ「時刻不明」（slotLabel は、読めないと "〜" だけを返すので、画面ではこちらを使う） */
+/** 枠の文。開始・終了のどちらかが読めなければ「時刻不明」（slotLabel は、読めないと "〜" だけ・"13:00〜" だけを返すので、画面ではこちらを使う） */
 export function slotText(slot: Pick<SlotRef, 'starts_at' | 'ends_at'>, now: string, offsetHours: number): string {
-  return formatClock(slot.starts_at, offsetHours) === '' ? '時刻不明' : slotLabel(slot, now, offsetHours);
+  return formatClock(slot.starts_at, offsetHours) === '' || formatClock(slot.ends_at, offsetHours) === '' ? '時刻不明' : slotLabel(slot, now, offsetHours);
 }
 
 /** 模擬で進められる注文の状態（これ以外は API が 409 invalid_transition にする） */
 export const MOCK_ADVANCE_STATUSES = ['ready', 'assigned', 'picked_up', 'delivering'] as const;
 
-/** 「模擬で 1 つ進める」を出すか。配達の提供者が mock で、進められる状態のときだけ（API は mock 以外を 409 mock_only にする） */
-export function canMockAdvance(provider: string, status: string): boolean {
-  return provider === 'mock' && (MOCK_ADVANCE_STATUSES as readonly string[]).includes(status);
+/**
+ * 「模擬で 1 つ進める」を出すか。配達の提供者が mock で、進められる状態のときだけ（API は mock 以外を 409 mock_only にする）。
+ * ready は「提案の配達員を割り当てる」ので、提案が無い（勤務中の配達員がいない）ときは出さない（押しても 409 no_courier_available になる）。
+ */
+export function canMockAdvance(provider: string, status: string, suggestion: DispatchSuggestion | null): boolean {
+  if (provider !== 'mock' || !(MOCK_ADVANCE_STATUSES as readonly string[]).includes(status)) return false;
+  return status !== 'ready' || suggestion !== null;
 }
 
 /** 配達の回数の文。初回は null。再配達（2 回目以降）は "配達 2 回目（再配達）" */

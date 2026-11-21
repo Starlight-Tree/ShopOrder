@@ -1,5 +1,6 @@
 // 配車ボードの固定の文と、API の失敗（status・code）から文を選ぶ関数。
-// 文は、API の message ではなく、ここに置いた固定のものを使う（例外の文字列・サーバーのパス・住所を画面に出さない）。
+// 宅配の操作で知られた失敗（KNOWN の code）の文は、API の message ではなく、ここに置いた固定のものを使う（例外の文字列・サーバーのパス・住所を画面に出さない）。
+// 表に無い 4xx は、スタッフ共通の failureFrom に任せる（API が返す固定の文。長さは 100 文字まで）。
 import type { ApiErrorBody } from '../contract';
 import { failureFrom, MSG } from './messages';
 import type { FailureKind } from './types';

@@ -52,6 +52,13 @@ describe('dispatchFailureFrom（宅配の操作の失敗）', () => {
     expect(dispatchFailureFrom(res(404, 'no_slot_available'))).toMatchObject({ kind: 'not_found', message: MSG.orderNotFound });
   });
 
+  it('表に無い 4xx は、スタッフ共通の failureFrom に任せる（API の固定の文。100 文字を超える・空の文は使わず、固定の文に倒す）', () => {
+    expect(dispatchFailureFrom(res(422, 'validation_error', '入力が正しくありません'))).toEqual({ kind: 'invalid', message: '入力が正しくありません', refresh: false });
+    expect(dispatchFailureFrom(res(409, 'something_new', '状態が合いません'))).toMatchObject({ kind: 'invalid', message: '状態が合いません' });
+    expect(dispatchFailureFrom(res(422, 'x', LEAK.repeat(2)))).toEqual({ kind: 'invalid', message: MSG.invalidInput, refresh: false });
+    expect(dispatchFailureFrom(res(400, 'x', ''))).toEqual({ kind: 'invalid', message: MSG.generic, refresh: false });
+  });
+
   it('どの文にも、API の文面（例外・パス・アドレス）は入らない', () => {
     for (const [status, code] of [[409, 'courier_off_duty'], [409, 'invalid_transition'], [409, 'zone_suspended'], [500, 'x'], [404, 'courier_not_found'], [403, 'forbidden']] as const) {
       const out = dispatchFailureFrom(res(status, code, LEAK));

@@ -47,7 +47,8 @@ export function OrderCard({ order, now, utcOffsetHours = DEFAULT_UTC_OFFSET_HOUR
         {delivery ? (
           <p className="st-delivery-mark">
             <span className="tag tag-delivery">宅配</span>
-            <span className="tag">{DELIVERY_STATUS_LABELS[delivery.status] ?? delivery.status}</span>
+            {/* 配達の状態は、割り当てが始まる ready からだけ出す（受付〜調理中は delivery.status が pending のままで、「割り当て待ち」と出すと、いま割り当てる段階だと読めてしまう） */}
+            {order.status === 'ready' || delivery.status !== 'pending' ? <span className="tag">{DELIVERY_STATUS_LABELS[delivery.status] ?? delivery.status}</span> : null}
             <span className="st-delivery-slot">枠 {slotText(delivery.slot, now, utcOffsetHours)}</span>
             {order.status === 'ready' ? (
               <Link className="st-delivery-link" href="/staff/dispatch">

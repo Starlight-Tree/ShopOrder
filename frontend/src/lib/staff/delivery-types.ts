@@ -1,6 +1,5 @@
 // 宅配（P2）の、配車・配達員の画面が使う API の形（docs/api.md「宅配（P2）」）。共有の contract.ts は触らないので、ここに足す。
 // 実行時の import を持たない（クライアントから import type で使う）。
-import type { Order, StaffOrder } from '../contract';
 import type { FailureKind } from './types';
 
 export type DeliveryStatus = 'pending' | 'assigned' | 'picked_up' | 'delivering' | 'delivered' | 'failed' | 'cancelled';
@@ -32,12 +31,17 @@ export type StaffDelivery = {
 
 export type DispatchSuggestion = { courier_id: number; courier_name: string; minutes: number };
 
-/** 配車ボードの注文。宅配だけ。status は ready / assigned / picked_up / delivering / delivery_failed など（宅配の状態は P1 の contract.ts に無い） */
-export type DispatchOrder = Omit<StaffOrder, 'status' | 'fulfillment' | 'allowed_actions' | 'events'> & {
+/**
+ * 配車ボードの注文。宅配だけ。status は ready / assigned / picked_up / delivering / delivery_failed など（宅配の状態は P1 の contract.ts に無い）。
+ * 画面が使う項目だけ（loader がこの形に詰め替える。API が余計な項目を返しても、ブラウザーへ渡る props には残らない）。
+ */
+export type DispatchOrder = {
+  public_id: string;
+  pickup_no: number;
   status: string;
-  fulfillment: 'delivery';
+  store: { id: number; name: string };
+  items: Array<{ name: string; size: string; temperature: string; qty: number }>;
   allowed_actions: string[];
-  events: Array<Omit<Order['events'][number], 'to_status'> & { to_status: string }>;
   delivery: StaffDelivery;
   suggestion: DispatchSuggestion | null;
 };
