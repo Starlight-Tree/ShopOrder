@@ -1,26 +1,26 @@
 :root {
-  --bg: #f7f4ee;
+  --bg: #f6f7f9;
   --surface: #ffffff;
-  --border: #e3ddd0;
-  --text: #2a241c;
-  --muted: #6b6254;
-  --primary: #9a5b13;
-  --tag-bg: #f1e6d2;
-  --tag-text: #5a3a0c;
+  --border: #e1e4e9;
+  --text: #1f2328;
+  --muted: #5c6470;
+  --primary: #2c4fcf;
+  --tag-bg: #e9eefc;
+  --tag-text: #1f3bab;
   --radius: 12px;
   --font: system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', Meiryo, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #17140f;
-    --surface: #211d16;
-    --border: #38311f;
-    --text: #efe8da;
-    --muted: #b3a891;
-    --primary: #e0a35a;
-    --tag-bg: #3a2f1c;
-    --tag-text: #f0d9b0;
+    --bg: #15171b;
+    --surface: #1b1d21;
+    --border: #2a2e35;
+    --text: #e6e8eb;
+    --muted: #9aa1ab;
+    --primary: #8aa2ff;
+    --tag-bg: #232a45;
+    --tag-text: #c9d4ff;
   }
 }
 
