@@ -8,10 +8,12 @@ from fastapi.responses import JSONResponse
 
 from app import auth, clock, delivery, inventory, rules
 from app import stores as store_queries
+from app.chat import model as chat_model
 from app.db import close_pool, connection, open_pool
 from app.errors import MESSAGES, ApiError
 from app.routes import cart as cart_routes
 from app.routes import delivery as delivery_routes
+from app.routes import chat as chat_routes
 from app.routes import orders as order_routes
 from app.routes import staff as staff_routes
 from app.routes import analytics as analytics_routes
@@ -25,6 +27,7 @@ log = logging.getLogger("oasis.api")
 async def lifespan(_: FastAPI):
     auth.check_startup()  # 本番相当の環境で、開発専用の設定が残っていたら、ここで起動を拒否する
     delivery.check_startup()  # 宅配の設定（暗証コードの鍵・提供者・方針）。本番相当で鍵が無ければ拒否する
+    chat_model.check_startup()  # CHAT_MODEL が不正・未実装（gemini は P6）なら、ここで起動を拒否する
     open_pool()
     yield
     close_pool()
@@ -39,6 +42,7 @@ app.include_router(staff_routes.router)
 app.include_router(analytics_routes.router)
 for _router in delivery_routes.routers:  # 宅配（P2）: 住所・区画・枠・配車・配達員
     app.include_router(_router)
+app.include_router(chat_routes.router)
 
 
 @app.exception_handler(RequestValidationError)
