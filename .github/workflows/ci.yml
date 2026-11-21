@@ -116,6 +116,65 @@ jobs:
       - name: Type-check
         run: npm run typecheck
 
+  # 実ブラウザー（Chromium）での通し（frontend/e2e/）。使い捨ての Postgres に、API（backend/tests/e2e_server.py。ダミーの履歴つき）と
+  # 画面（next build → next start）を立てる。決済・配達・通知・チャットは模擬。外部の API は呼ばない。
+  e2e:
+    name: E2E (Playwright, Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      # tests/e2e_server.py が、この URL で接続して shop_order_e2e を作り直す（tests/guards.py が対象を検査する）
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      # playwright.config.ts の既定は開発コンテナの backend/.venv。CI は setup-python の python を使う
+      E2E_PYTHON: python
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Install Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Run E2E tests
+        working-directory: frontend
+        run: npm run test:e2e
+      # 失敗したときのトレースと HTML レポート（個人情報は含まない。データはすべてダミー）
+      - name: Upload the report on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 7
+
   versions:
     name: Version check
     runs-on: ubuntu-latest
