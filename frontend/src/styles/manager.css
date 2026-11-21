@@ -1,0 +1,229 @@
+/*
+ * 店長・店舗スタッフの分析画面（/manager 以下）。顧客の画面とトークン（--bg / --surface / --border / --text / --muted / --primary / --tag-* / --radius）を共有する。
+ * すべて .manager-root の中だけに効く（顧客・スタッフの画面へ漏らさない）。ライト・ダークは globals.css と同じ prefers-color-scheme。
+ * 色は CSS の変数だけ（グラフの色も、Recharts の stroke / fill に var(--mg-…) を渡す）。文字は本文 4.5:1 以上、グラフの線・棒・枠は 3:1 以上（WCAG AA）。
+ * 状態は色だけに頼らず、文字（「休業」「5 人未満」「発注点割れ」など）も出す。
+ * グラフの色: カテゴリーは「系列 1 = 青、系列 2 = 橙」の 2 色だけ（dataviz の検証済みの並び。隣り合う 2 色の CVD 距離と明度の帯を、検証スクリプトで確認した）。
+ * ヒートマップは、青 1 色の明るさの段階（0〜5）。数字も必ず書く。
+ */
+.manager-root {
+  --mg-series-1: #2a78d6;
+  --mg-series-2: #eb6834;
+  --mg-grid: #e3ddd0;
+  --mg-axis: #6b6254;
+  --mg-text: #2a241c;
+  --mg-muted: #6b6254;
+  --mg-hover: rgba(42, 120, 214, 0.1);
+  --mg-alert: #b3261e;
+  --mg-alert-text: #8a1c16;
+  --mg-alert-bg: #fdeceb;
+  --mg-focus: #1a5fb4;
+  --mg-surface-2: #f1ece0;
+  --mg-control-border: #6b6254;
+  --mg-on-primary: #ffffff;
+  --mg-warn-bg: #fff2cc;
+  --mg-warn-text: #664000;
+  --mg-warn-border: #b36b00;
+  /* ヒートマップの段階（0 = 注文なし、1〜5 = 多いほど濃い）と、その上の文字の色（各 4.5:1 以上） */
+  --mg-heat-0: #f1ece0;
+  --mg-heat-0-text: #6b6254;
+  --mg-heat-1: #cde2fb;
+  --mg-heat-1-text: #0b0b0b;
+  --mg-heat-2: #9ec5f4;
+  --mg-heat-2-text: #0b0b0b;
+  --mg-heat-3: #5598e7;
+  --mg-heat-3-text: #0b0b0b;
+  --mg-heat-4: #256abf;
+  --mg-heat-4-text: #ffffff;
+  --mg-heat-5: #0d366b;
+  --mg-heat-5-text: #ffffff;
+  min-height: 100vh;
+  font-size: 15px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .manager-root {
+    --mg-series-1: #3987e5;
+    --mg-series-2: #d95926;
+    --mg-grid: #38311f;
+    --mg-axis: #b3a891;
+    --mg-text: #efe8da;
+    --mg-muted: #b3a891;
+    --mg-hover: rgba(57, 135, 229, 0.18);
+    --mg-alert: #ff8f85;
+    --mg-alert-text: #ffb4ab;
+    --mg-alert-bg: #3d1c1a;
+    --mg-focus: #8ab4f8;
+    --mg-surface-2: #2a251b;
+    --mg-control-border: #b3a891;
+    --mg-on-primary: #17140f;
+    --mg-warn-bg: #3d2f0d;
+    --mg-warn-text: #ffd98a;
+    --mg-warn-border: #e0a35a;
+    --mg-heat-0: #2a251b;
+    --mg-heat-0-text: #b3a891;
+    --mg-heat-1: #14335c;
+    --mg-heat-1-text: #ffffff;
+    --mg-heat-2: #184f95;
+    --mg-heat-2-text: #ffffff;
+    --mg-heat-3: #256abf;
+    --mg-heat-3-text: #ffffff;
+    --mg-heat-4: #3987e5;
+    --mg-heat-4-text: #0b0b0b;
+    --mg-heat-5: #86b6ef;
+    --mg-heat-5-text: #0b0b0b;
+  }
+}
+
+.manager-root h1 { font-size: 22px; margin: 4px 0 12px; }
+.manager-root h2 { font-size: 17px; margin: 0; color: var(--text); }
+.manager-root p { margin: 0 0 6px; }
+.manager-root a { color: var(--primary); }
+.manager-root :focus-visible { outline: 3px solid var(--mg-focus); outline-offset: 2px; }
+.manager-root .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.manager-root .mg-muted { color: var(--muted); }
+.manager-root .mg-alert-text { color: var(--mg-alert-text); }
+.manager-root .tag { display: inline-block; font-weight: 700; }
+
+/* ---- ボタン・フォーム（高さ 44px 以上） ---- */
+.manager-root .mg-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; min-width: 44px; padding: 8px 16px;
+  background: var(--surface); color: var(--text); border: 1px solid var(--mg-control-border); border-radius: 8px;
+  font: inherit; font-weight: 700; line-height: 1.3; text-decoration: none; cursor: pointer;
+}
+.manager-root .mg-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.manager-root .mg-btn-primary { background: var(--primary); color: var(--mg-on-primary); border-color: transparent; }
+.manager-root .mg-form { display: grid; gap: 12px; }
+.manager-root .mg-field { display: grid; gap: 4px; }
+.manager-root .mg-field label { font-weight: 700; }
+.manager-root input[type='email'], .manager-root input[type='password'], .manager-root select {
+  width: 100%; min-height: 44px; padding: 8px 12px; background: var(--surface); color: var(--text);
+  border: 1px solid var(--mg-control-border); border-radius: 8px; font: inherit; font-size: 16px; /* 16px 未満だと、iOS が入力で拡大する */
+}
+.manager-root .mg-form-error { color: var(--mg-alert-text); background: var(--mg-alert-bg); border: 1px solid var(--mg-alert); border-radius: 8px; padding: 10px 12px; font-weight: 700; }
+
+/* ---- ヘッダー ---- */
+.manager-root .mg-skip { position: absolute; left: 8px; top: -60px; z-index: 10; padding: 10px 14px; background: var(--surface); color: var(--text); border: 2px solid var(--mg-focus); border-radius: 8px; }
+.manager-root .mg-skip:focus { top: 8px; }
+.manager-root .mg-header { background: var(--surface); border-bottom: 1px solid var(--border); }
+.manager-root .mg-header-inner { max-width: 1280px; margin: 0 auto; padding: 6px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; }
+.manager-root .mg-brand { display: flex; align-items: baseline; gap: 8px; margin: 0; }
+.manager-root .mg-brand-name { font-weight: 800; font-size: 17px; }
+.manager-root .mg-brand-sub { color: var(--muted); font-size: 13px; }
+.manager-root .mg-nav ul { display: flex; flex-wrap: wrap; gap: 2px; list-style: none; margin: 0; padding: 0; }
+.manager-root .mg-nav a {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px;
+  color: var(--text); text-decoration: none; font-weight: 600; border-bottom: 3px solid transparent;
+}
+.manager-root .mg-nav a.is-active { color: var(--tag-text); background: var(--tag-bg); border-bottom-color: var(--primary); font-weight: 800; }
+.manager-root .mg-who { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 0 auto; }
+.manager-root .mg-who-store { font-weight: 700; }
+.manager-root .mg-logout { margin: 0; }
+
+/* ---- 本文 ---- */
+.manager-root .mg-main { max-width: 1280px; margin: 0 auto; padding: 12px 20px 56px; overflow-wrap: anywhere; }
+.manager-root .mg-dummy { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 12px; padding: 8px 12px; background: var(--mg-warn-bg); color: var(--mg-warn-text); border: 1px solid var(--mg-warn-border); border-radius: 8px; }
+.manager-root .mg-dummy-tag { font-weight: 800; border: 1px solid var(--mg-warn-border); border-radius: 999px; padding: 0 10px; }
+.manager-root .mg-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 10px; }
+.manager-root .mg-scope label { font-weight: 700; }
+.manager-root .mg-scope select { width: auto; min-width: 200px; max-width: 100%; }
+.manager-root .mg-more { margin-top: 12px; }
+.manager-root .mg-note { color: var(--muted); font-size: 13.5px; margin: 8px 0 0; }
+.manager-root .mg-summary { color: var(--muted); font-size: 14px; margin: 0 0 8px; }
+.manager-root .mg-empty { color: var(--muted); padding: 24px 0; text-align: center; }
+.manager-root .mg-closed { margin: 0 0 10px; padding: 10px 12px; background: var(--mg-warn-bg); color: var(--mg-warn-text); border: 1px solid var(--mg-warn-border); border-radius: 8px; font-weight: 700; }
+
+/* ---- 期間の切り替え（リンク）---- */
+.manager-root .mg-period { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.manager-root .mg-seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--mg-control-border); border-radius: 8px; overflow: hidden; margin: 0 0 10px; background: var(--surface); }
+.manager-root .mg-seg a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; color: var(--text); text-decoration: none; font-weight: 600; border-right: 1px solid var(--border); }
+.manager-root .mg-seg a:last-child { border-right: 0; }
+.manager-root .mg-seg a[aria-current='true'] { background: var(--tag-bg); color: var(--tag-text); font-weight: 800; box-shadow: inset 0 -3px 0 var(--primary); }
+
+/* ---- タイル・要点 ---- */
+.manager-root .mg-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.manager-root .mg-tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; min-width: 0; }
+.manager-root .mg-tile p { margin: 0; }
+.manager-root .mg-tile-label { color: var(--muted); font-size: 13.5px; font-weight: 600; }
+.manager-root .mg-tile-value { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.25; }
+.manager-root .mg-tile-sub { color: var(--muted); font-size: 13px; }
+.manager-root .mg-facts { list-style: none; margin: 8px 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.manager-root .mg-facts li { display: grid; min-width: 0; }
+.manager-root .mg-fact-label { color: var(--muted); font-size: 13px; }
+.manager-root .mg-facts strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.manager-root .mg-compare { margin: 0 0 10px; padding: 6px 10px; border-left: 4px solid var(--mg-series-1); background: var(--surface); border-radius: 4px; }
+.manager-root .mg-compare[data-comparable='false'] { border-left-color: var(--mg-control-border); color: var(--muted); }
+
+/* ---- グラフの枠 ---- */
+.manager-root .mg-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px 14px; margin: 0 0 14px; min-width: 0; }
+.manager-root .mg-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin-bottom: 6px; }
+.manager-root .mg-toggle { display: inline-flex; border: 1px solid var(--mg-control-border); border-radius: 8px; overflow: hidden; }
+.manager-root .mg-toggle-btn { min-height: 44px; min-width: 44px; padding: 0 14px; background: var(--surface); color: var(--text); border: 0; font: inherit; font-weight: 600; cursor: pointer; }
+.manager-root .mg-toggle-btn + .mg-toggle-btn { border-left: 1px solid var(--mg-control-border); }
+.manager-root .mg-toggle-btn[aria-pressed='true'] { background: var(--tag-bg); color: var(--tag-text); font-weight: 800; box-shadow: inset 0 -3px 0 var(--primary); }
+.manager-root .mg-card-body { min-width: 0; }
+.manager-root .mg-chart { width: 100%; min-width: 0; color: var(--mg-text); }
+.manager-root .mg-chart .recharts-wrapper { max-width: 100%; }
+.manager-root .mg-chart-loading { display: grid; place-items: center; color: var(--muted); }
+.manager-root .mg-tooltip { background: var(--surface); color: var(--text); border: 1px solid var(--mg-control-border); border-radius: 8px; padding: 8px 10px; font-size: 13.5px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); }
+.manager-root .mg-tooltip p { margin: 0 0 2px; }
+.manager-root .mg-tooltip-title { font-weight: 800; }
+
+/* ---- 表 ---- */
+.manager-root .mg-table { width: 100%; border-collapse: collapse; background: var(--surface); }
+.manager-root .mg-table th, .manager-root .mg-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+.manager-root .mg-table thead th { background: var(--mg-surface-2); font-size: 13.5px; }
+.manager-root .mg-table tbody th { font-weight: 700; }
+.manager-root .mg-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.manager-root .mg-table tr[data-state='closed'] td, .manager-root .mg-table tr[data-state='not_built'] td { color: var(--muted); }
+.manager-root .mg-table tr.is-low { background: var(--mg-alert-bg); }
+.manager-root .mg-table tr.is-low th[scope='row'] { box-shadow: inset 6px 0 0 var(--mg-alert); }
+.manager-root .mg-tag-low { display: inline-block; margin-left: 8px; padding: 0 8px; border: 1px solid var(--mg-alert); color: var(--mg-alert-text); border-radius: 999px; font-size: 12.5px; font-weight: 700; }
+.manager-root .mg-abc { display: inline-block; min-width: 28px; text-align: center; padding: 0 8px; border-radius: 6px; border: 1px solid var(--mg-control-border); font-weight: 800; }
+.manager-root .mg-abc-A { background: var(--tag-bg); color: var(--tag-text); }
+.manager-root td.mg-suppressed { color: var(--muted); font-style: italic; }
+.manager-root .mg-progress, .manager-root .mg-cohort-note { color: var(--muted); font-size: 12.5px; font-weight: 400; margin-left: 4px; }
+
+/* ---- ヒートマップ（行 = 時間帯、列 = 曜日。狭い画面でも 8 列に収まる） ---- */
+.manager-root .mg-table-compact th, .manager-root .mg-table-compact td { padding: 6px 4px; }
+.manager-root .mg-heat-table td.mg-heat { text-align: center; font-weight: 700; border: 1px solid var(--surface); }
+.manager-root .mg-heat-0 { background: var(--mg-heat-0); color: var(--mg-heat-0-text); font-weight: 400; }
+.manager-root .mg-heat-1 { background: var(--mg-heat-1); color: var(--mg-heat-1-text); }
+.manager-root .mg-heat-2 { background: var(--mg-heat-2); color: var(--mg-heat-2-text); }
+.manager-root .mg-heat-3 { background: var(--mg-heat-3); color: var(--mg-heat-3-text); }
+.manager-root .mg-heat-4 { background: var(--mg-heat-4); color: var(--mg-heat-4-text); }
+.manager-root .mg-heat-5 { background: var(--mg-heat-5); color: var(--mg-heat-5-text); }
+
+/* ---- 知らせ ---- */
+.manager-root .mg-notice { background: var(--surface); border: 1px solid var(--border); border-left-width: 6px; border-radius: var(--radius); padding: 12px 16px; margin: 8px 0 16px; max-width: 720px; }
+.manager-root .mg-notice-error { border-color: var(--mg-alert); background: var(--mg-alert-bg); color: var(--mg-alert-text); }
+.manager-root .mg-notice-error a { color: inherit; }
+.manager-root .mg-notice-title { font-weight: 800; }
+
+/* ---- ログイン ---- */
+.manager-root .mg-login { min-height: 100vh; display: grid; place-items: start center; padding: 48px 16px; }
+.manager-root .mg-login-card { width: 100%; max-width: 420px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; display: grid; gap: 8px; }
+.manager-root .mg-login-card h1 { margin: 4px 0 0; }
+.manager-root .mg-login-foot { margin-top: 8px; }
+
+/* ---- 幅: 1280px 基準。狭い幅では、表を縦に積む（横スクロールを出さない。390px で確認） ---- */
+@media (max-width: 720px) {
+  .manager-root .mg-header-inner, .manager-root .mg-main { padding-left: 16px; padding-right: 16px; }
+  .manager-root .mg-who { margin-left: 0; }
+  .manager-root .mg-scope select { flex: 1 1 200px; }
+  .manager-root .mg-card { padding: 10px; }
+  .manager-root .mg-tile-value { font-size: 22px; }
+
+  .manager-root .mg-table:not(.mg-table-compact), .manager-root .mg-table:not(.mg-table-compact) tbody,
+  .manager-root .mg-table:not(.mg-table-compact) tr, .manager-root .mg-table:not(.mg-table-compact) th,
+  .manager-root .mg-table:not(.mg-table-compact) td { display: block; }
+  .manager-root .mg-table:not(.mg-table-compact) { background: transparent; }
+  .manager-root .mg-table:not(.mg-table-compact) thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .manager-root .mg-table:not(.mg-table-compact) tr { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; padding: 4px 0; }
+  .manager-root .mg-table:not(.mg-table-compact) tr.is-low { background: var(--mg-alert-bg); border-color: var(--mg-alert); }
+  .manager-root .mg-table:not(.mg-table-compact) tr.is-low th[scope='row'] { box-shadow: none; }
+  .manager-root .mg-table:not(.mg-table-compact) th[scope='row'] { border-bottom: 0; font-size: 15.5px; }
+  .manager-root .mg-table:not(.mg-table-compact) td { display: flex; justify-content: space-between; gap: 12px; border-bottom: 0; padding-top: 3px; padding-bottom: 3px; text-align: right; }
+  .manager-root .mg-table:not(.mg-table-compact) td::before { content: attr(data-label); color: var(--muted); font-weight: 600; text-align: left; }
+}
