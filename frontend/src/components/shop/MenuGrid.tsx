@@ -1,6 +1,7 @@
 import { formatLumi, seasonLabel, soldWindowLabel } from '../../lib/format';
 import { CATEGORIES, CATEGORY_LABEL, variantLabel, type Category } from '../../lib/shop/labels';
 import type { FormAction } from '../../lib/shop/types';
+import { menuImageSrc } from '../../lib/shop/menu-images';
 import { filterMenu, storeNote, variantState } from '../../lib/shop/view';
 import type { MenuItem, Store } from '../../lib/types';
 import { ActionForm } from './ActionForm';
@@ -8,12 +9,19 @@ import { SubmitButton } from './SubmitButton';
 
 const STORE_NOTE_ID = 'menu-store-note';
 
-/** 品ごとのカード: 名前・説明・アレルゲン・変種（サイズ・温度ごとの価格）・「カートに入れる」 */
+/** 品ごとのカード: 写真（あれば）・名前・説明・アレルゲン・変種（サイズ・温度ごとの価格）・「カートに入れる」 */
 function MenuCard({ item, store, addAction }: { item: MenuItem; store: Store | null; addAction: FormAction }) {
   const season = seasonLabel(item);
   const window = soldWindowLabel(item);
+  const image = menuImageSrc(item.code);
   return (
     <li className="card shop-item">
+      {image ? (
+        <div className="shop-item-thumb">
+          {/* 名前が下にあるので、画像は飾り（alt なし） */}
+          <img src={image} alt="" width={1024} height={768} loading="lazy" decoding="async" />
+        </div>
+      ) : null}
       <h3 className="card-title">{item.name}</h3>
       <p className="muted">{item.description}</p>
       <p className="notes">
