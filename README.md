@@ -6,8 +6,10 @@ FastAPI + Postgres 17 + Next.js。通貨は「ルミ」。世界観は [docs/wor
 
 ## 今できること（2026-11-21）
 
-- 12 店と 15 品のメニュー（価格はルミ）を、API と画面で見られる。
-- 注文・在庫・配達・チャット・分析は、設計だけで未実装（[roadmap](docs/roadmap.md)）。
+- **画面で注文できる（店頭受け取り）。** 店を選び、メニューからカートに入れ、確認して確定し、模擬決済で支払う。注文の状況は 5 秒ごとに更新される（<http://localhost:3400>）。
+- **店のスタッフの画面**（<http://localhost:3400/staff/login>）。調理ボード（受付 → 調理開始 → 準備完了 → 渡した、取消し）と在庫（入荷・廃棄・棚卸し）。デモのスタッフは `staff-<店の code>@oasis-cafe.example`（例 `staff-residential-main@oasis-cafe.example`）、店長は `manager@oasis-cafe.example`、パスワードは `oasis-demo-pass`（ダミー）。
+- 在庫は台帳 + 残高で、確定のときに確保する（15 分で戻る。二重売りは起きない）。
+- 宅配・チャット・分析は、設計と実装の途中（[roadmap](docs/roadmap.md)）。API の約束は [docs/api.md](docs/api.md)。
 
 ## Quick start
 
@@ -16,7 +18,7 @@ FastAPI + Postgres 17 + Next.js。通貨は「ルミ」。世界観は [docs/wor
 ```bash
 docker compose up -d db
 docker compose run --rm migrate      # 番号付き SQL を適用する
-docker compose run --rm seed         # ダミーの店・メニューを入れる（DEMO_DATA=allow を Compose が渡す）
+docker compose run --rm --build seed   # ダミーの店・メニュー・在庫・デモのスタッフを入れる（DEMO_DATA=allow を Compose が渡す。--build: 古いイメージで流さないため）
 docker compose up -d --build
 ```
 
