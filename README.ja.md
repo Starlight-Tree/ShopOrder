@@ -12,14 +12,19 @@
 | **カート**<br><a href="docs/screenshots/02-cart.jpg"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/02-cart-dark.jpg"><img alt="カート。数量、小計、合計と、注文内容の確認へ進むボタン" src="docs/screenshots/02-cart.jpg"></picture></a> | **在庫**<br><a href="docs/screenshots/05-staff-stock.jpg"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/05-staff-stock-dark.jpg"><img alt="在庫。品目ごとの実在庫・確保中・使える数・発注点" src="docs/screenshots/05-staff-stock.jpg"></picture></a> |
 | **注文の状況**<br><a href="docs/screenshots/03-order-status.jpg"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/03-order-status-dark.jpg"><img alt="注文の状況。受け取り番号と、支払いから受け取りまでの進み具合" src="docs/screenshots/03-order-status.jpg"></picture></a> | |
 
-店長は、別の画面（概況・売上・商品・時間帯・在庫・顧客）を、別のログインで使います。
+店長は、別の画面（概況・売上・商品・時間帯・在庫・顧客）を、別のログインで使います。下の画面は、生成した 90 日分の履歴から出していて、数字はすべて架空です。
+
+| 店長の分析 | |
+|---|---|
+| **概況**<br><a href="docs/screenshots/06-manager-overview.jpg"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/06-manager-overview-dark.jpg"><img alt="概況。全 12 店の今日の売上・注文数・客単価と、直近 28 日の売上の折れ線（7 日の移動平均つき）" src="docs/screenshots/06-manager-overview.jpg"></picture></a> | **時間帯**<br><a href="docs/screenshots/07-manager-hours.jpg"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/07-manager-hours-dark.jpg"><img alt="時間帯。曜日 × 時間帯の注文数のヒートマップ。どのマスにも数字を書いてある" src="docs/screenshots/07-manager-hours.jpg"></picture></a> |
+| **顧客**<br><a href="docs/screenshots/08-manager-customers.jpg"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/08-manager-customers-dark.jpg"><img alt="顧客。RFM の区分ごとの人数と、最後の注文 × 回数の表（5 人未満のマスは出さない）" src="docs/screenshots/08-manager-customers.jpg"></picture></a> | |
 
 ## 特徴
 
 - **画面で注文できる（店頭受け取り）。** 店を選び、メニュー（季節の品は期間外だと注文できません）からカートに入れ、確認して確定し、模擬決済で支払います。注文の画面は、受け取り番号と進み具合を出し、5 秒ごとに更新します。
 - **店の画面。** 調理ボード（受付 → 調理開始 → 準備完了 → 受け渡し。取消しもできます）と在庫（入荷・廃棄・棚卸し）を、ログインした店について出します。店長のアカウントは、店を切り替えられます。
 - **二重に売らない在庫。** 在庫は、追記だけの台帳と残高です。注文の確定のときに、条件つきの `UPDATE` で確保し、15 分で支払われなければ戻します（[ADR 0004](docs/decisions/0004-inventory-ledger-and-reservation.md)）。冪等キーで、二重の注文を防ぎます（[docs/order-flow.md](docs/order-flow.md)）。
-- **店長の分析。** 概況・売上・商品・時間帯・在庫・顧客（RFM・コホート）を出します。指標の定義は 1 か所に書いています（[docs/metrics.md](docs/metrics.md)）。API とユニットテストはありますが、ブラウザーでの目視は、まだです（[docs/analytics.md](docs/analytics.md)）。宅配の内訳の画面は、まだありません。
+- **店長の分析。** 概況・売上・商品・時間帯・在庫・顧客（RFM・コホート）を出します。指標の定義は 1 か所に書いています（[docs/metrics.md](docs/metrics.md)）。API とユニットテストがあり、6 つの画面は 2026-11-21 にデスクトップ幅のブラウザーで目視しました（初回の目視で、グラフが描画されない不具合を見つけて直しました）。狭い画面や一部の表示は、まだ確かめていません（[docs/analytics.md](docs/analytics.md)）。宅配の内訳の画面は、まだありません。
 - **宅配（バックエンドだけ）。** 区画・送料・時間枠・配達員・配車・不在のお客様の扱いがあり、受け取りのときに暗証コードを確かめます。配達の進行は模擬です。API とテストはありますが、画面はまだありません（[docs/order-flow.md](docs/order-flow.md)）。
 - **チャットでの注文（バックエンドだけ。模擬のモデル）。** AI の店員は、カートの下書きと確認カードまでを作れます。注文の確定・決済・個人情報の変更のツールは、AI に渡しません。確定は、画面のボタンだけです（[ADR 0003](docs/decisions/0003-chat-never-confirms-orders.md)）。`evals/` がこれを確かめます。チャットの画面は、まだありません（[docs/chat.md](docs/chat.md)）。
 - **ログインと権限。** 店のスタッフと店長は、HttpOnly の Cookie に入れた、意味を持たない（推測できない）セッションのトークンでログインします。API は、店とロールをそこから取り、毎回 SQL の条件で確かめるので、他店のデータは 404 です。お客様の本物のログイン（Google）は、設計だけで、まだ作っていません（P6。[docs/api.md](docs/api.md)）。開発では、お客様はヘッダーで選ぶダミーの利用者です（`AUTH_MODE=dev`）。
