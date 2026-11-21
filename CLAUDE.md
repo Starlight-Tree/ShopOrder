@@ -11,7 +11,7 @@ P0・P1 は済み。**P2（宅配）・P3（チャット）・P4（分析）は�
 
 - **画面が未着手:** チャット（模擬モデルのみ。評価は `evals/`）、宅配の分析。
 - **未着手:** P5 の通知・連絡スレッド・個別の顧客の画面（顧客の集計〔RFM・コホート〕は P4 に入っている）。P6（実 LLM・実決済・公開先）は見送り。
-- **環境:** 開発は開発コンテナ（`.devcontainer/`。手順は [docs/development.md](docs/development.md)）。Git のリモートは GitHub の `Starlight-Tree/ShopOrder`（公開。`main` のみ）。E2E（Playwright）は未導入。ブラウザーでの目視は一部が未実施（[docs/analytics.md](docs/analytics.md) の「未確認」）。
+- **環境:** 開発は開発コンテナ（`.devcontainer/`。手順は [docs/development.md](docs/development.md)）。Git のリモートは GitHub の `Starlight-Tree/ShopOrder`（公開。`main` のみ）。E2E（Playwright）は `frontend/e2e/` に導入済み（2026-11-22。店頭受け取りと宅配の通し、店長の分析。`scripts/verify.sh` には未収録。CI の `e2e` ジョブで流れる）。ブラウザーでの目視は一部が未実施（[docs/analytics.md](docs/analytics.md) の「未確認」）。
 
 ## よく使うコマンド
 
@@ -21,6 +21,7 @@ P0・P1 は済み。**P2（宅配）・P3（チャット）・P4（分析）は�
 | 初めての環境（空の DB） | `docker compose up -d db` → `docker compose run --rm migrate` → `docker compose run --rm seed` → `docker compose up -d --build` |
 | バックエンドのテスト | `cd backend && python3.13 -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.in`、`TEST_DATABASE_URL=<使い捨ての Postgres の URL> .venv/bin/python -m pytest -q -rs`。**`TEST_DATABASE_URL` が無いと DB のテストがスキップされる** |
 | フロントエンドの検査 | `cd frontend && npm ci && npm test && npm run build && npm run typecheck`（`typecheck` は `build` の後） |
+| E2E（実ブラウザー） | 開発コンテナで `cd frontend && npm run test:e2e`。使い捨ての `test-db` に専用の DB を作り直して、API（8401）と画面（3401）を立てる。コンテナの作成後に、1 回 `npx playwright install chromium`（詳細は [docs/development.md](docs/development.md)） |
 | 検査（まとめて） | `scripts/verify.sh [backend\|frontend\|lint\|all]`。CI に近い検査で、同じではない（違いはスクリプト冒頭）。流せない段は「未実行」に出る |
 | 版の整合 | `scripts/check-versions.sh`（Python 3.13・Node 24 が、各ファイルで揃っているか） |
 | 登録語の検査 | `scripts/check-sensitive-terms.sh [A..B]`（語は Git の管理外の `.git/sensitive-terms`。表示しない） |
@@ -49,7 +50,7 @@ P0・P1 は済み。**P2（宅配）・P3（チャット）・P4（分析）は�
 - **`backend/requirements.txt` は直接編集しない。** `requirements.in` を直して作り直す（`pip-compile --strip-extras`）。
 - **金額・数量は整数。** 在庫は台帳（追記のみ）+ 残高。確保は注文の確定時に条件付き UPDATE（[ADR 0004](docs/decisions/0004-inventory-ledger-and-reservation.md)）。
 - **エラー本文は固定の文。** 例外の文字列やサーバーのパスを API の応答に含めない。
-- **ポートは 3400（画面）と 8400（API）。** JobNavi（3200/8200）・DocuNavi（3000）と同時に動かすため。変えない。
+- **ポートは 3400（画面）と 8400（API）。** JobNavi（3200/8200）・DocuNavi（3000）と同時に動かすため。変えない。E2E は専用の 3401（画面）と 8401（API）。
 - 変更したら、触れた範囲のテストを実行してから報告する。確認できていないことは、確認済みと書かない。
 
 ## 承認が要る操作（正本）

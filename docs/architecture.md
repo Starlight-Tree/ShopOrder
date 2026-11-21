@@ -34,7 +34,7 @@
 | グラフ | shadcn/ui の Chart（Recharts v3）。ヒートマップとコホート表は HTML の `<table>` + CSS 変数の色 | SVG・CSS 変数でダークに対応。表は読み上げられる（調査: 公式の文書で確認、2026-11-21） |
 | チャットの画面 | `ai` + `@ai-sdk/react` の `useChat`（UI message stream） | DocuNavi と同じ |
 | チャットのバックエンド | LangGraph + `langchain-google-genai`。ガードは DocuNavi の `guardrails.py` を写す | 骨格が既にある。LLM は `ChatModel` の裏 |
-| テスト | pytest（使い捨て Postgres）、Vitest、Playwright（E2E は Docker だけ） | JobNavi と同じ |
+| テスト | pytest（使い捨て Postgres）、Vitest、Playwright（E2E。開発コンテナと CI で流す。[development.md](development.md)） | JobNavi と同じ |
 | 開発環境 | Docker Compose（db・api・frontend・worker。道具は `profile: tools`）、devcontainer、Node 24・Python 3.13 | JobNavi と同じ。ポートは 3400 / 8400 |
 | CI | GitHub Actions（外部 API を呼ばない。デプロイを含まない） | JobNavi と同じ |
 | 秘密 | 環境変数。Git 管理外の `.env`。Infisical は本番を決めるときに決める | 開発は秘密が要らない（模擬） |
