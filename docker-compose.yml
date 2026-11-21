@@ -15,8 +15,8 @@ services:
     labels:
       local.ui.group: "App-ShopOrder"
     environment:
-      POSTGRES_DB: shop_order
-      POSTGRES_USER: shop_order
+      POSTGRES_DB: shoporder
+      POSTGRES_USER: shoporder
       POSTGRES_PASSWORD: "${LOCAL_DB_PASSWORD:-oasis-local}"
     volumes:
       - pg-data:/var/lib/postgresql/data
@@ -24,7 +24,7 @@ services:
       - backend-net
     healthcheck:
       # -h 127.0.0.1: 初回の初期化中の一時サーバー（ソケットだけ待ち受ける）を、起動済みと見なさないため
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U shop_order -d shop_order"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U shoporder -d shoporder"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -40,7 +40,7 @@ services:
     profiles: ["tools"]
     command: ["python", "-m", "app.migrate"]
     environment:
-      DATABASE_URL: &database_url "postgresql://shop_order:${LOCAL_DB_PASSWORD:-oasis-local}@db:5432/shop_order"
+      DATABASE_URL: &database_url "postgresql://shoporder:${LOCAL_DB_PASSWORD:-oasis-local}@db:5432/shoporder"
     depends_on:
       db:
         condition: service_healthy

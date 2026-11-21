@@ -23,7 +23,7 @@
 
 ```bash
 mkdir -p backups
-docker compose exec -T db pg_dump -U shop_order -Fc shop_order > backups/shoporder.dump.new
+docker compose exec -T db pg_dump -U shoporder -Fc shoporder > backups/shoporder.dump.new
 ls -l backups/shoporder.dump.new            # サイズが 0 でないことを確かめてから
 mv backups/shoporder.dump.new backups/shoporder.dump
 docker compose run --rm --build migrate     # --build: マイグレーションを足したあとは、イメージを作り直す
@@ -59,7 +59,7 @@ docker compose run --rm --build migrate     # --build: マイグレーション�
 | コンテナ | `shoporder-db` / `-api` / `-worker` / `-frontend`（道具は `-migrate` / `-seed`） |
 | ボリューム・ネットワーク | `shoporder_pg-data` など（Compose が `<プロジェクト名>_<名前>` で作る） |
 | VS Code のコンテナ一覧のグループ | ラベル `local.ui.group: "App-ShopOrder"`（`containers.containers.groupByLabel`（`.vscode/settings.json` とユーザー設定）がこのラベルを読む。動作には影響しない） |
-| DB・ユーザー | `shop_order`（既存のボリュームとバックアップがこの名前なので、そのまま。`jobnavi`・`docunavi` は DB 名もプロジェクト名と同じで、ここだけ違う） |
+| DB・ユーザー | `shoporder`（`jobnavi`・`docunavi` と同じく、プロジェクト名と同じ） |
 | ローカルのフォルダー | `ShopOrder`（`jobnavi`・`docunavi` は小文字。2026-11-21 にユーザーが、フォルダー名は変えないと決めた） |
 
-Compose の `name:` を変えると、ボリューム名が変わり、旧名の DB のデータは孤立する。変えたときは、旧ボリュームの中身を新ボリュームへ写してから起動する。
+Compose の `name:` を変えると、ボリューム名が変わり、旧名の DB のデータは孤立する。変えたときは、旧ボリュームの中身を新ボリュームへ写してから起動する。同様に、`POSTGRES_DB` と `POSTGRES_USER` は、空のデータ領域の初期化にしか効かない。既存のボリュームの DB とロールの名前を変えるには、バックアップを取り、API・worker・画面を止めてから、別の一時的なスーパーユーザーで `ALTER DATABASE … RENAME TO …` と `ALTER ROLE … RENAME TO …` を流す（接続中の DB と、接続している自分自身のロールは改名できない）。
