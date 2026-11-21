@@ -1,5 +1,15 @@
-// 配達員の画面の、画面に依らない部分: ボタン・暗証コードの入力の整え方・不在の理由。
+// 配達員の画面の、画面に依らない部分: 入口の振り分け・ボタン・暗証コードの入力の整え方・不在の理由。
 import type { CourierAction } from './delivery-types';
+
+/**
+ * 配達員の画面の場所。Cookie の Path は /staff なので、/courier ではなく /staff の下に置く（Cookie の Path は広げない）。
+ */
+export const COURIER_HOME = '/staff/courier';
+
+/** ログイン後・業務画面の入口で進む先。配達員は配達員の画面、それ以外（スタッフ・店長）は調理ボード */
+export function staffHomePath(role: string): string {
+  return role === 'courier' ? COURIER_HOME : '/staff';
+}
 
 export const COURIER_ACTION_LABELS: Record<CourierAction, string> = {
   pickup: '集荷した',
@@ -40,6 +50,6 @@ export function isFailReason(value: unknown): value is FailReasonValue {
 
 /** 暗証コードの残りの回数の文 */
 export function attemptsLeftText(left: number | null): string | null {
-  if (left === null) return null;
+  if (left === null || !Number.isFinite(left)) return null;
   return left <= 1 ? `残り ${Math.max(0, left)} 回（間違えると配達が止まります）` : `残り ${left} 回`;
 }

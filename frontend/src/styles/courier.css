@@ -1,0 +1,96 @@
+/*
+ * 配達員の画面（/staff/courier）。app/staff/layout.tsx の .staff-root の中に入るので、staff.css のトークン（--st-*）と、
+ * ボタン・知らせ・メッセージの部品（.st-btn・.st-notice・.st-message・.st-field など）を使い、ここでは配達員用の違いだけを足す。
+ * すべて .courier-root の中だけに効く。スマートフォンで片手で押せるよう、ボタンは高さ 56px 以上・全幅。
+ * ライト・ダークは globals.css と同じ prefers-color-scheme（トークン側で切り替わる）。状態は色だけに頼らず、文字（「配達中」など）も出す。
+ */
+.courier-root {
+  max-width: 640px;
+  margin: 0 auto;
+  font-size: 16px;
+}
+
+/* ---- ボタン（staff.css の .st-btn より具体的にして、順序に依らず大きさを上書きする） ---- */
+.courier-root .st-btn.cr-btn { min-height: 56px; padding: 10px 18px; font-size: 17px; width: 100%; }
+.courier-root .st-btn.cr-btn-small { min-height: 48px; width: auto; font-size: 15px; }
+
+/* ---- ヘッダー ---- */
+.courier-root .cr-header { background: var(--surface); border-bottom: 1px solid var(--border); }
+.courier-root .cr-header-inner { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 8px 16px; }
+.courier-root .cr-brand { display: flex; align-items: baseline; gap: 8px; margin: 0; }
+.courier-root .cr-brand-name { font-weight: 800; font-size: 17px; }
+.courier-root .cr-brand-sub { color: var(--muted); font-size: 14px; }
+.courier-root .cr-who { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 0 auto; }
+.courier-root .cr-who-name { font-weight: 700; }
+.courier-root .cr-logout { margin: 0; }
+.courier-root .cr-logout .st-btn.cr-btn { width: auto; min-height: 48px; font-size: 15px; }
+
+/* ---- 本文 ---- */
+.courier-root .cr-main { padding: 12px 16px 64px; overflow-wrap: anywhere; }
+.courier-root .cr-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin-bottom: 8px; }
+.courier-root .cr-toolbar p { margin: 0; }
+.courier-root .st-notice { max-width: none; }
+/* 結果の文は、下のカードで操作しても見えるよう、画面の上に貼り付ける（長い一覧で、文だけ上に隠れないように）。
+   成功の文は数秒で消え、失敗の文は「閉じる」で消せる（貼り付いたまま縦の領域を使い続けない） */
+.courier-root .st-live { position: sticky; top: 0; z-index: 5; }
+.courier-root .st-live .st-message { margin: 0 0 10px; box-shadow: 0 2px 6px rgb(0 0 0 / 0.25); }
+.courier-root .cr-message { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.courier-root .cr-message-body { flex: 1 1 12em; min-width: 0; }
+.courier-root .st-btn.cr-dismiss { flex: 0 0 auto; }
+
+.courier-root .cr-card-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.courier-root .cr-card { background: var(--surface); border: 1px solid var(--border); border-left-width: 8px; border-radius: var(--radius); padding: 14px 16px; }
+.courier-root .cr-card[data-status='picked_up'] { border-left-color: var(--st-warn-border); }
+.courier-root .cr-card[data-status='delivering'] { border-left-color: var(--st-ok-border); }
+.courier-root .cr-card[data-status='assigned'] { border-left-color: var(--st-control-border); }
+.courier-root .cr-card-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.courier-root .cr-pickup { display: grid; margin: 0; line-height: 1.1; }
+.courier-root .cr-pickup-label { font-size: 13px; color: var(--muted); }
+.courier-root .cr-pickup-no { font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.courier-root .cr-status { display: grid; justify-items: end; gap: 2px; margin: 0; }
+.courier-root .cr-status-label { font-size: 13px; color: var(--muted); }
+.courier-root .cr-status-tag { font-size: 15px; padding: 3px 12px; }
+
+.courier-root .cr-meta { display: grid; gap: 2px; margin: 10px 0 0; padding: 10px 0 0; border-top: 1px solid var(--border); }
+.courier-root .cr-meta div { display: flex; gap: 12px; }
+.courier-root .cr-meta dt { flex: 0 0 3em; color: var(--muted); }
+.courier-root .cr-meta dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.courier-root .cr-items { list-style: none; margin: 10px 0 0; padding: 10px 0 0; border-top: 1px solid var(--border); display: grid; gap: 4px; }
+.courier-root .cr-items li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
+.courier-root .cr-item-name { font-weight: 700; }
+.courier-root .cr-item-spec { color: var(--muted); font-size: 14px; }
+.courier-root .cr-item-qty { margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* 住所（集荷後だけ。個人情報なので、枠で囲んで、他と見分ける） */
+.courier-root .cr-address { margin: 12px 0 0; padding: 10px 12px; background: var(--st-surface-2); border: 1px solid var(--st-control-border); border-radius: 10px; }
+.courier-root .cr-address p { margin: 0; }
+.courier-root .cr-address-label { font-weight: 800; }
+.courier-root .cr-address-line { font-size: 17px; }
+.courier-root .cr-address-note { margin-top: 4px; }
+.courier-root .cr-address-note-label { display: inline-block; margin-right: 8px; padding: 0 8px; border: 1px solid var(--st-control-border); border-radius: 999px; font-size: 13px; font-weight: 700; }
+
+/* ---- 操作 ---- */
+.courier-root .cr-actions { display: grid; gap: 10px; margin-top: 14px; }
+.courier-root .cr-panel { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--st-control-border); display: grid; gap: 10px; }
+.courier-root .cr-panel .cr-actions { margin-top: 4px; }
+.courier-root .st-field input.cr-pin-input { /* staff.css の input[type='text']（0,2,1）より具体的に */
+  min-height: 64px; font-size: 28px; font-weight: 800; letter-spacing: 0.35em; text-align: center; font-variant-numeric: tabular-nums;
+}
+.courier-root .cr-reasons { margin: 0; padding: 0; border: 0; display: grid; gap: 8px; min-width: 0; }
+.courier-root .cr-reasons legend { padding: 0; margin-bottom: 6px; font-weight: 700; }
+.courier-root .cr-radio {
+  display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 14px;
+  background: var(--surface); border: 1px solid var(--st-control-border); border-radius: 10px; font-weight: 700; cursor: pointer;
+}
+.courier-root .cr-radio:has(input:checked) { border-color: var(--primary); box-shadow: inset 0 0 0 2px var(--primary); }
+.courier-root .cr-radio input { width: 24px; height: 24px; margin: 0; accent-color: var(--primary); }
+
+.courier-root .cr-empty { background: var(--surface); border: 1px dashed var(--st-control-border); border-radius: var(--radius); padding: 28px 16px; text-align: center; }
+.courier-root .cr-empty-title { font-size: 18px; font-weight: 800; }
+.courier-root .cr-empty p:last-child { margin-bottom: 0; }
+
+@media (max-width: 400px) {
+  .courier-root .cr-pickup-no { font-size: 38px; }
+  .courier-root .cr-who { margin-left: 0; }
+}

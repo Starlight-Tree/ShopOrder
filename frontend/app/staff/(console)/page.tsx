@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { ApiUnavailable, Notice } from '../../../src/components/staff/Notices';
+import { ApiUnavailable } from '../../../src/components/staff/Notices';
 import { OrderBoard } from '../../../src/components/staff/OrderBoard';
 import { loadOrders } from '../../../src/lib/staff/loaders';
 import { MSG } from '../../../src/lib/staff/messages';
@@ -15,17 +15,6 @@ export default async function BoardPage({ searchParams }: Props) {
   const auth = await requireStaff();
   if (!auth) return <ApiUnavailable href="/staff" />;
   const { token, staff } = auth;
-
-  if (staff.role === 'courier') {
-    return (
-      <>
-        <h1>調理ボード</h1>
-        <Notice kind="info" title="配達員のアカウントでは、調理ボードは使えません">
-          <p>配達員の画面は、宅配の段階で追加します。</p>
-        </Notice>
-      </>
-    );
-  }
 
   // 店の選択は、全店の店長だけ（店に属するスタッフ・店長は、API が自店に絞る）
   const allStores = staff.role === 'manager' && staff.store_id === null;
