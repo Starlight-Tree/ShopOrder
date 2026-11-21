@@ -4,7 +4,7 @@
 
 English | [日本語](README.ja.md)
 
-A fictional ordering and delivery app for "Oasis Coffee" (オアシス珈琲), a 12-store café chain on the planet Zahard (FastAPI, Next.js, Postgres 17, Docker Compose). Customers order on screen, stores run a prep board and stock, managers read analytics. Stores, people, the currency "lumi" and all data are made up, and payment is a mock. Store pickup works on screen; delivery and chat ordering are backend-only so far.
+A fictional ordering and delivery app for "Oasis Coffee" (オアシス珈琲), a 12-store café chain on the planet Zahard (FastAPI, Next.js, Postgres 17, Docker Compose). Customers order on screen, stores run a prep board and stock, managers read analytics. Stores, people, the currency "lumi" and all data are made up, and payment is a mock. Store pickup and delivery have screens; chat ordering is backend-only so far.
 
 | Customer (store pickup) | Store staff |
 |---|---|
@@ -25,7 +25,7 @@ Managers use a separate console with its own login. Its numbers come from 90 day
 - **Store screens:** a prep board and stock for the signed-in store.
 - **No double selling:** stock is an append-only ledger; confirming an order reserves it, and unpaid reservations are released after 15 minutes ([ADR 0004](docs/decisions/0004-inventory-ledger-and-reservation.md)).
 - **Manager analytics:** sales, products, time of day, stock, customers (RFM, cohorts) ([docs/metrics.md](docs/metrics.md)).
-- **Delivery** (backend only): zones, time slots, couriers, dispatch, a PIN at hand-over.
+- **Delivery:** zones, time slots, couriers, dispatch, a PIN at hand-over, with customer, dispatch and courier screens.
 - **Chat ordering** (backend only, mock model): the assistant can draft a cart but never confirms or pays ([ADR 0003](docs/decisions/0003-chat-never-confirms-orders.md)).
 - **Permissions:** the API checks store and role on every request; another store's data is a 404.
 - **Mock first:** payment, delivery and the chat model are swappable, and real ones need explicit approval ([ADR 0005](docs/decisions/0005-mock-first-providers.md)).
