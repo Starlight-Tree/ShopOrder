@@ -37,7 +37,8 @@ done
 [[ ${#groups[@]} -gt 0 ]] || groups=(all)
 wants() { local g; for g in "${groups[@]}"; do [[ "$g" == all || "$g" == "$1" ]] && return 0; done; return 1; }
 
-declare -a passed failed skipped
+# 空の配列で初期化する（`declare -a` だけだと、bash 5.2 で `${#failed[@]}` が set -u に引っかかる）
+passed=() failed=() skipped=()
 log="$(mktemp -t shoporder-verify.XXXXXX)"
 trap 'rm -f "$log"' EXIT
 
