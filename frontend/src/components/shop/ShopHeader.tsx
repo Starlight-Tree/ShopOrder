@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ShopNav } from './ShopNav';
 
-/** ヘッダー: ロゴ・メニュー・カート（点数）・注文履歴 */
+/** ヘッダー: ロゴ・メニュー・カート（点数）・注文履歴・お届け先 */
 export function ShopHeader({ cartCount }: { cartCount: number | null }) {
   return (
     <header className="shop-header">

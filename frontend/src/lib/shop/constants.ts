@@ -14,3 +14,16 @@ export const DEFAULT_DEV_USER = 'demo-customer';
 
 /** 注文画面の再取得の間隔（ミリ秒） */
 export const POLL_INTERVAL_MS = 5000;
+
+// ---- 宅配（P2）。値は docs/api.md「宅配（P2）」 ----
+
+/** 時間枠を選べる日数。今日から 7 日先まで（今日を含めて 8 日分） */
+export const DELIVERY_DAYS_AHEAD = 7;
+
+/** 1 人が持てる住所の数（too_many_addresses） */
+export const MAX_ADDRESSES = 10;
+
+/** 住所の入力の上限（文字数）。API の検査と同じ */
+export const ADDRESS_LABEL_MAX = 20;
+export const ADDRESS_LINE_MAX = 100;
+export const ADDRESS_NOTE_MAX = 100;

@@ -1,7 +1,7 @@
 // テスト用の道具（fetch の差し替えと、API の応答の見本）。アプリ本体からは使わない。
 import { vi } from 'vitest';
-import type { Cart, CartLine, CheckoutProposal, Order } from '../contract';
-import type { MenuItem, Store } from '../types';
+import type { Address, Cart, CartDelivery, CartLine, CheckoutProposal, Order, OrderDelivery } from '../contract';
+import type { MenuItem, Slot, SlotList, Store, Zone } from '../types';
 
 export type StubRequest = { method: string; path: string; headers: Record<string, string>; body: unknown };
 export type StubReply = { status?: number; body?: unknown } | undefined;
@@ -48,12 +48,12 @@ export const cartLine = (over: Partial<CartLine> = {}): CartLine => ({
 });
 
 export const cart = (over: Partial<Cart> = {}): Cart => ({
-  version: 3, store: { id: 1, name: '居住区本店' }, fulfillment: 'pickup', lines: [cartLine()], subtotal_lumi: 900, delivery_fee_lumi: 0, total_lumi: 900, ...over,
+  version: 3, store: { id: 1, name: '居住区本店' }, fulfillment: 'pickup', lines: [cartLine()], subtotal_lumi: 900, delivery_fee_lumi: 0, total_lumi: 900, delivery: null, ...over,
 });
 
 export const proposal = (over: Partial<CheckoutProposal> = {}): CheckoutProposal => ({
   id: '3f0c9a52-8d9e-4b6e-9a0e-0d3f6b6f9a11', cart_version: 3, total_lumi: 900, expires_at: '2026-11-21T10:10:00Z', store: { id: 1, name: '居住区本店' },
-  lines: [cartLine()], pickup_note: '店頭でお渡しします', ...over,
+  lines: [cartLine()], pickup_note: '店頭でお渡しします', fulfillment: 'pickup', subtotal_lumi: 900, delivery_fee_lumi: 0, delivery: null, ...over,
 });
 
 export const order = (over: Partial<Order> = {}): Order => ({
@@ -61,5 +61,42 @@ export const order = (over: Partial<Order> = {}): Order => ({
   items: [{ name: 'オアシスブレンド', size: 'M', temperature: 'hot', unit_price_lumi: 450, qty: 2, line_total_lumi: 900 }],
   subtotal_lumi: 900, delivery_fee_lumi: 0, total_lumi: 900, placed_at: '2026-11-21T10:00:00Z', reservation_expires_at: '2026-11-21T10:15:00Z',
   payment: { provider: 'mock', status: 'pending' }, events: [{ to_status: 'placed', at: '2026-11-21T10:00:00Z', actor_type: 'customer', reason: null }],
-  cancel_reason: null, can_pay: true, can_cancel: true, ...over,
+  cancel_reason: null, can_pay: true, can_cancel: true, delivery: null, ...over,
 });
+
+// ---- 宅配（P2） ----
+
+export const zone = (over: Partial<Zone> = {}): Zone => ({
+  id: 2, name: '発着場', area_code: 2, fee_lumi: 200, free_over_lumi: 2000, min_order_lumi: 700, base_minutes: 30, is_suspended: false, ...over,
+});
+
+export const address = (over: Partial<Address> = {}): Address => ({
+  id: 3, label: '自宅', area_code: 2, area_name: '発着場', zone_id: 2, line: 'アルカ市発着場2-1-5 305', note: '呼び鈴は 1 回', created_at: '2026-11-20T01:00:00Z', ...over,
+});
+
+export const slot = (over: Partial<Slot> = {}): Slot => ({
+  id: 41, starts_at: '2026-11-22T04:00:00Z', ends_at: '2026-11-22T04:30:00Z', capacity: 4, booked: 1, remaining: 3, available: true, unavailable_reason: null, ...over,
+});
+
+export const slotList = (over: Partial<SlotList> = {}): SlotList => ({ store_id: 1, date: '2026-11-22', zone_id: 2, reason: null, slots: [slot()], ...over });
+
+/** 宅配のカートの delivery（住所・枠を選んだ、問題のない状態） */
+export const cartDelivery = (over: Partial<CartDelivery> = {}): CartDelivery => ({
+  address: { id: 3, label: '自宅', area_code: 2, area_name: '発着場' }, zone: zone(), slot: { id: 41, starts_at: '2026-11-22T04:00:00Z', ends_at: '2026-11-22T04:30:00Z' },
+  fee_lumi: 200, free_over_lumi: 2000, min_order_lumi: 700, issues: [], ...over,
+});
+
+/** 宅配のカート（小計 900 ルミ + 送料 200 ルミ） */
+export const deliveryCart = (over: Partial<Cart> = {}): Cart => cart({ fulfillment: 'delivery', delivery_fee_lumi: 200, total_lumi: 1100, delivery: cartDelivery(), ...over });
+
+export const deliveryProposal = (over: Partial<CheckoutProposal> = {}): CheckoutProposal =>
+  proposal({ fulfillment: 'delivery', pickup_note: null, subtotal_lumi: 900, delivery_fee_lumi: 200, total_lumi: 1100, delivery: cartDelivery(), ...over });
+
+export const orderDelivery = (over: Partial<OrderDelivery> = {}): OrderDelivery => ({
+  status: 'pending', zone: { id: 2, name: '発着場' }, slot: { id: 41, starts_at: '2026-11-22T04:00:00Z', ends_at: '2026-11-22T04:30:00Z' },
+  courier: null, pin: null, eta_at: '2026-11-22T04:00:00Z', address: { label: '自宅' }, attempt: 1, failure_reason: null, ...over,
+});
+
+/** 宅配の注文（状態は status で、配達は delivery で指定する） */
+export const deliveryOrder = (over: Partial<Order> = {}): Order =>
+  order({ fulfillment: 'delivery', delivery_fee_lumi: 200, total_lumi: 1100, delivery: orderDelivery(), ...over });

@@ -114,7 +114,7 @@
 .shop-store-form { margin: 0; }
 .shop-tabs ul { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 16px 0; padding: 0; }
 .shop-tab { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border: 1px solid var(--shop-line); border-radius: 999px; background: var(--surface); color: var(--text); font-weight: 600; text-decoration: none; }
-.shop-tab[aria-current='page'] { background: var(--primary); border-color: var(--primary); color: var(--shop-on-primary); font-weight: 800; }
+.shop-tab[aria-current='page'], .shop-tab[aria-current='date'] { background: var(--primary); border-color: var(--primary); color: var(--shop-on-primary); font-weight: 800; }
 .shop-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
 .shop-item-thumb { aspect-ratio: 4 / 3; margin: 0 0 12px; border-radius: 8px; overflow: hidden; background: var(--tag-bg); }
 .shop-item-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -131,8 +131,23 @@
 .shop-dl > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 16px; padding: 6px 0; }
 .shop-dl dt { color: var(--muted); }
 .shop-dl dd { margin: 0; text-align: right; }
-.shop-methods { list-style: none; margin: 0; padding: 0; text-align: right; }
-.shop-method-off { color: var(--muted); }
+/* 受け取り方法・住所・時間枠の選択（選択中は、枠の太さと「選択中」の文字で示す。色だけにしない） */
+.shop-methods, .shop-choices { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px; }
+.shop-methods { grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+.shop-method, .shop-choice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--shop-line); border-radius: 10px; }
+.shop-method-on, .shop-choice-on { border: 3px solid var(--primary); padding: 8px 12px; }
+.shop-choice-info { flex: 1 1 160px; min-width: 0; }
+.shop-choice-info p { margin: 0; }
+.shop-choice-form { margin: 0; }
+.shop-delivery h3 { margin: 20px 0 8px; font-size: 16px; color: var(--text); }
+.shop-days ul { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 8px 0 12px; padding: 0; }
+.shop-slots { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: 8px; }
+.shop-slots .shop-btn { width: 100%; height: 100%; padding: 6px 8px; }
+.shop-slot { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 44px; }
+.shop-slot-time { font-weight: 800; font-variant-numeric: tabular-nums; }
+.shop-slot-note { font-size: 13px; font-weight: 600; }
+.shop-slot-on { width: 100%; height: 100%; min-height: 48px; padding: 4px 8px; border: 3px solid var(--primary); border-radius: 10px; background: var(--tag-bg); color: var(--tag-text); }
+.shop-slot-form { margin: 0; }
 .shop-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .shop-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .shop-line-main { grid-column: 1; grid-row: 1; min-width: 0; }
@@ -158,8 +173,9 @@
 .shop-pickup-no { margin: 4px 0 8px !important; color: var(--primary); font-size: clamp(64px, 22vw, 112px); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
 .shop-status { margin: 4px 0 8px !important; font-size: 17px; font-weight: 600; }
 .shop-status-badge { display: inline-block; margin-right: 8px; padding: 2px 12px; border-radius: 999px; background: var(--tag-bg); color: var(--tag-text); font-size: 14px; font-weight: 800; white-space: nowrap; }
-.shop-status-ready { background: var(--shop-ok-bg); color: var(--shop-ok); }
-.shop-status-cancelled { background: var(--shop-danger-bg); color: var(--shop-danger); }
+.shop-status-ready, .shop-status-delivering { background: var(--shop-ok-bg); color: var(--shop-ok); }
+.shop-status-cancelled, .shop-status-delivery_failed { background: var(--shop-danger-bg); color: var(--shop-danger); }
+.shop-tag-delivery { margin-left: 8px; font-weight: 600; vertical-align: middle; }
 .shop-steps { list-style: none; margin: 16px 0; padding: 0; display: grid; gap: 0; }
 .shop-step { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 4px 0; }
 .shop-step-dot { flex: none; width: 20px; height: 20px; border: 3px solid var(--shop-line); border-radius: 50%; background: var(--surface); }
@@ -168,6 +184,8 @@
 .shop-step-current .shop-step-label { font-weight: 800; }
 .shop-step-upcoming .shop-step-label { color: var(--muted); }
 .shop-step-time { font-size: 13px; }
+.shop-step-failed .shop-step-dot { border-color: var(--shop-danger); background: var(--shop-danger-bg); box-shadow: 0 0 0 4px var(--shop-danger-bg); }
+.shop-step-failed .shop-step-label { color: var(--shop-danger); }
 .shop-cancelled { border-color: var(--shop-danger); }
 .shop-cancelled h2 { color: var(--shop-danger); }
 .shop-pay-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 12px 0 0; }
@@ -177,6 +195,24 @@
 .shop-autorefresh { margin: 8px 0 0; font-size: 13px; text-align: center; }
 .shop-cancel-form p { margin: 0 0 8px; }
 
+/* ---- 宅配の注文: 暗証コード・お届けできなかったとき ---- */
+.shop-pin { margin: 12px 0 16px; padding: 14px 16px; text-align: center; background: var(--surface); color: var(--text); border: 4px solid var(--primary); border-radius: var(--radius); }
+.shop-pin p { margin: 0; }
+.shop-pin-title { font-weight: 700; }
+.shop-pin-code { margin: 4px 0 !important; color: var(--primary); font-size: clamp(44px, 16vw, 72px); font-weight: 800; line-height: 1.1; letter-spacing: 0.25em; padding-left: 0.25em; font-variant-numeric: tabular-nums; }
+.shop-pin-note { font-weight: 700; }
+.shop-failed { margin: 8px 0 12px; padding: 12px 16px; background: var(--shop-danger-bg); color: var(--shop-danger); border: 1px solid var(--shop-danger); border-radius: var(--radius); }
+.shop-failed p { margin: 0 0 6px; }
+.shop-failed p:last-child { margin-bottom: 0; }
+
+/* ---- 住所 ---- */
+.shop-address-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.shop-address-list .shop-dl { margin: 4px 0 8px; }
+.shop-form { display: grid; gap: 12px; }
+.shop-field { display: grid; gap: 4px; }
+.shop-field label { font-weight: 600; }
+.shop-input { width: 100%; min-height: 44px; padding: 0 12px; background: var(--bg); color: var(--text); border: 1px solid var(--shop-line); border-radius: 8px; font: inherit; }
+
 /* ---- 注文履歴 ---- */
 .shop-order-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 .shop-order-link { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px 16px; min-height: 44px; color: var(--text); text-decoration: none; }
@@ -185,8 +221,14 @@
 .shop-order-meta { display: flex; flex-direction: column; min-width: 0; }
 
 @media (min-width: 720px) {
-  .shop-steps { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .shop-steps { grid-template-columns: repeat(var(--steps, 6), minmax(0, 1fr)); }
   .shop-step { flex-direction: column; justify-content: flex-start; gap: 6px; text-align: center; }
+}
+
+/* 宅配は段階が多いので、広い画面（960px 以上）だけ横に並べる */
+@media (min-width: 720px) and (max-width: 959px) {
+  .shop-steps-delivery { grid-template-columns: none; }
+  .shop-steps-delivery .shop-step { flex-direction: row; justify-content: flex-start; gap: 12px; text-align: left; }
 }
 
 @media (max-width: 640px) {

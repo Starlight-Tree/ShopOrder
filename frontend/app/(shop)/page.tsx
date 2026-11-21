@@ -14,7 +14,7 @@ export default async function MenuPage({ searchParams }: { searchParams: Promise
   return (
     <>
       <h1>メニュー</h1>
-      <p className="lead">砂漠のオアシスのように、人が集まる場所をつくる。店を選んで、メニューから店頭でお受け取りの注文ができます。（架空のカフェ。データはすべてダミー）</p>
+      <p className="lead">砂漠のオアシスのように、人が集まる場所をつくる。店を選んで、メニューから注文できます。受け取り方法（店頭でお渡し・宅配）は、カートで選べます。（架空のカフェ。データはすべてダミー）</p>
       {result.ok ? (
         <MenuScreen data={result.data} category={category} selectStoreAction={selectStoreAction} addAction={addToCartAction} />
       ) : (

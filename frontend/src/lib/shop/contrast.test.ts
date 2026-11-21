@@ -34,7 +34,7 @@ const TEXT: [string, string][] = [
   ['--primary', '--bg'], ['--primary', '--surface'],
   ['--shop-on-primary', '--primary'],
   ['--tag-text', '--tag-bg'],
-  ['--shop-danger', '--shop-danger-bg'], ['--shop-danger', '--surface'],
+  ['--shop-danger', '--shop-danger-bg'], ['--shop-danger', '--surface'], ['--shop-danger', '--bg'],
   ['--shop-on-danger', '--shop-danger-solid'],
   ['--shop-warn', '--shop-warn-bg'], ['--shop-warn', '--surface'], ['--shop-warn', '--bg'],
   ['--shop-ok', '--shop-ok-bg'],

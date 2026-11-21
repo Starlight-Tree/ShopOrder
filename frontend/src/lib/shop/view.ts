@@ -3,6 +3,7 @@ import type { Cart } from '../contract';
 import type { MenuItem, Store, Variant } from '../types';
 import { formatLumi } from '../format';
 import { MAX_ORDER_TOTAL_LUMI } from './constants';
+import { describeError } from './errors';
 import { closedReasonText, unavailableReasonText, type Category } from './labels';
 
 export type StoreStatus = { selectable: boolean; reason: string | null };
@@ -47,7 +48,7 @@ export function filterMenu(menu: MenuItem[], category: Category | null): MenuIte
   return category ? menu.filter((i) => i.category === category) : menu;
 }
 
-/** 「注文内容を確認する」へ進めない理由（空なら進める） */
+/** 「注文内容を確認する」へ進めない理由（空なら進める）。宅配は、delivery.issues を API の順のまま、直し方つきの固定の文にする */
 export function checkoutBlockers(cart: Cart, store: Store | null): string[] {
   const out: string[] = [];
   if (cart.lines.length === 0) {
@@ -60,6 +61,12 @@ export function checkoutBlockers(cart: Cart, store: Store | null): string[] {
     if (!status.selectable) out.push(`選んだ店は今、注文できません（${status.reason}）`);
   }
   if (cart.lines.some((l) => !l.available)) out.push('今は注文できない品があります。カートから削除してください');
-  if (cart.total_lumi > MAX_ORDER_TOTAL_LUMI) out.push(`合計が ${formatLumi(MAX_ORDER_TOTAL_LUMI)} を超えています。数量を減らしてください`);
+  // 上限は品の小計で見る（送料は含めない。API と同じ）
+  if (cart.subtotal_lumi > MAX_ORDER_TOTAL_LUMI) out.push(`品の小計が${formatLumi(MAX_ORDER_TOTAL_LUMI)} を超えています。数量を減らしてください`);
+  // 店が未選択のときの issues は、店が無いことの結果なので出さない（上の「受け取る店を選んでください」だけ）
+  if (cart.fulfillment === 'delivery' && cart.store && cart.delivery) {
+    const extra = cart.delivery.min_order_lumi === null ? {} : { min_order_lumi: cart.delivery.min_order_lumi };
+    for (const code of cart.delivery.issues) out.push(describeError({ code, ...extra }).text);
+  }
   return out;
 }

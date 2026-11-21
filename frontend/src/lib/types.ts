@@ -41,3 +41,37 @@ export type MenuItem = {
   sold_until: string | null;
   variants: Variant[];
 };
+
+// ---- 宅配（P2。docs/api.md「宅配（P2）」）。認証なしで読める区画・時間枠の形 ----
+
+export type ZoneRef = { id: number; name: string };
+
+export type SlotRef = { id: number; starts_at: string; ends_at: string };
+
+/** 区画（= エリア）。送料・無料になる金額・最低注文額・基準の所要分・砂嵐の警報 */
+export type Zone = {
+  id: number;
+  name: string;
+  area_code: number;
+  fee_lumi: number;
+  free_over_lumi: number | null;
+  min_order_lumi: number;
+  base_minutes: number;
+  is_suspended: boolean;
+};
+
+/** 枠を選べない理由。full = 満席、cutoff = 受付の締めを過ぎた */
+export type SlotUnavailableReason = 'full' | 'cutoff';
+
+export type Slot = SlotRef & {
+  capacity: number;
+  booked: number;
+  remaining: number;
+  available: boolean;
+  unavailable_reason: SlotUnavailableReason | null;
+};
+
+/** 枠の一覧が空になる理由（`reason` が付くとき `slots` は空） */
+export type SlotListReason = 'delivery_unavailable' | 'mobile_order_unavailable' | 'temporary_closure' | 'closed_today' | 'storm_warning' | 'zone_unserved';
+
+export type SlotList = { store_id: number; date: string; zone_id: number | null; reason: SlotListReason | null; slots: Slot[] };

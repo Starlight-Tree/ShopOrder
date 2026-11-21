@@ -41,7 +41,7 @@ describe('数量・店', () => {
     expect(calls[0]).toMatchObject({ method: 'PUT', path: '/api/cart/items/12', body: { qty: 0 } });
   });
 
-  it('店を選ぶ: 成功は店名を知らせる。422 delivery_unsupported・閉店は固定の文', async () => {
+  it('店を選ぶ: 成功は店名を知らせる。閉店は固定の文', async () => {
     stubApi(() => ({ body: cart() }));
     expect(await selectStore({}, 1)).toMatchObject({ ok: true, message: '受け取る店を「居住区本店」にしました' });
     stubApi(() => apiError(409, 'store_closed', { closed_reason: 'closed_today' }));

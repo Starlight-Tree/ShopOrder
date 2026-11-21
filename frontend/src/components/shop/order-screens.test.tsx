@@ -298,8 +298,8 @@ describe('注文履歴', () => {
     render(
       <OrderList
         orders={[
-          { public_id: 'K7M2Q9XD', pickup_no: 12, status: 'ready', store: { id: 1, name: '居住区本店' }, total_lumi: 1350, placed_at: '2026-11-21T01:00:00Z' },
-          { public_id: 'AAAA1111', pickup_no: 3, status: 'cancelled', store: { id: 4, name: '遺跡テラス店' }, total_lumi: 480, placed_at: '2026-11-20T01:00:00Z' },
+          { public_id: 'K7M2Q9XD', pickup_no: 12, status: 'ready', fulfillment: 'pickup', store: { id: 1, name: '居住区本店' }, total_lumi: 1350, placed_at: '2026-11-21T01:00:00Z' },
+          { public_id: 'AAAA1111', pickup_no: 3, status: 'cancelled', fulfillment: 'pickup', store: { id: 4, name: '遺跡テラス店' }, total_lumi: 480, placed_at: '2026-11-20T01:00:00Z' },
         ]}
       />,
     );

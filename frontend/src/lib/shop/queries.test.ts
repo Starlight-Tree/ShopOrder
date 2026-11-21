@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { loadCartCount, loadCartPage, loadMenuPage, getMenu, getOrder, postCheckoutProposal, postOrder, postPay, putCartItem, putCartStore } from './queries';
+import { loadCartCount, loadCartPage, loadMenuPage, getMenu, getOrder, postCheckoutProposal, postOrder, postPay, putCart, putCartItem } from './queries';
 import { apiError, cart, cartLine, menuItem, order, proposal, store, stubApi } from './testing';
 
 describe('API の呼び出し（fetch を差し替えて試す）', () => {
   it('利用者は X-Dev-User で渡す。無ければヘッダーを付けない', async () => {
     const { calls } = stubApi(() => ({ body: cart() }));
-    await putCartStore({ devUser: 'alice-1' }, 3);
-    await putCartStore({}, 3);
+    await putCart({ devUser: 'alice-1' }, { storeId: 3, fulfillment: 'pickup' });
+    await putCart({}, { storeId: 3, fulfillment: 'pickup' });
     expect(calls[0]?.headers['X-Dev-User']).toBe('alice-1');
     expect(calls[1]?.headers['X-Dev-User']).toBeUndefined();
   });
 
-  it('PUT /api/cart は店と受け取り方法（店頭のみ）。数量は絶対値', async () => {
+  it('PUT /api/cart は店と受け取り方法（店頭は住所・枠を付けない）。数量は絶対値', async () => {
     const { calls } = stubApi(() => ({ body: cart() }));
-    await putCartStore({}, 3);
+    await putCart({}, { storeId: 3, fulfillment: 'pickup' });
     await putCartItem({}, 12, 4);
     expect(calls[0]).toMatchObject({ method: 'PUT', path: '/api/cart', body: { store_id: 3, fulfillment: 'pickup' } });
     expect(calls[1]).toMatchObject({ method: 'PUT', path: '/api/cart/items/12', body: { qty: 4 } });

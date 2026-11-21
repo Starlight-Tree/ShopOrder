@@ -24,7 +24,7 @@ export function StorePicker({ stores, selectedId, action }: { stores: Store[]; s
           <strong className="shop-summary-value">{selected ? selected.name : '店を選んでください'}</strong>
           <span className="shop-summary-action">{selected ? '変更する' : '選ぶ'}</span>
         </summary>
-        <p className="muted">店頭でお受け取りの注文です。営業中の店から選べます。</p>
+        <p className="muted">受け取る店です（宅配は、この店から届けます）。営業中の店から選べます。</p>
         {groupStoresByArea(stores).map(({ area, stores: inArea }) => (
           <div key={area} className="shop-store-area">
             <h3>{area}</h3>

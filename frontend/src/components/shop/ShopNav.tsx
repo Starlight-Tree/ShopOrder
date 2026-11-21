@@ -9,6 +9,7 @@ const ITEMS: NavItem[] = [
   { href: '/', label: 'メニュー', match: (p) => p === '/' },
   { href: '/cart', label: 'カート', match: (p) => p === '/cart' || p.startsWith('/checkout') },
   { href: '/orders', label: '注文履歴', match: (p) => p.startsWith('/orders') },
+  { href: '/addresses', label: 'お届け先', match: (p) => p.startsWith('/addresses') },
 ];
 
 /** 今のページのリンクを判定する（テスト用に公開） */
@@ -17,7 +18,7 @@ export function isActive(pathname: string | null, href: string): boolean {
   return !!item && pathname !== null && item.match(pathname);
 }
 
-/** ヘッダーのメニュー・カート（点数）・注文履歴。今のページに aria-current を付ける */
+/** ヘッダーのメニュー・カート（点数）・注文履歴・お届け先（住所）。今のページに aria-current を付ける */
 export function ShopNav({ cartCount }: { cartCount: number | null }) {
   const pathname = usePathname();
   return (

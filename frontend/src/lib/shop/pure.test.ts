@@ -263,7 +263,7 @@ describe('画面の判断', () => {
     expect(checkoutBlockers(cart({ store: null }), null)).toEqual(['受け取る店を選んでください']);
     expect(checkoutBlockers(cart(), store({ accepting_orders: false, closed_reason: 'closed_today' }))[0]).toContain('本日は定休日です');
     expect(checkoutBlockers(cart({ lines: [cartLine({ available: false, unavailable_reason: 'sold_out' })] }), store())[0]).toContain('今は注文できない品');
-    expect(checkoutBlockers(cart({ total_lumi: 30_001 }), store())[0]).toContain('30,000 ルミ');
-    expect(checkoutBlockers(cart({ total_lumi: 30_000 }), store())).toEqual([]);
+    expect(checkoutBlockers(cart({ subtotal_lumi: 30_001, total_lumi: 30_001 }), store())[0]).toContain('30,000 ルミ');
+    expect(checkoutBlockers(cart({ subtotal_lumi: 30_000, total_lumi: 30_000 }), store())).toEqual([]);
   });
 });

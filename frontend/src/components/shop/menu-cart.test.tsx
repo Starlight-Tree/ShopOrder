@@ -1,7 +1,10 @@
 import { render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Cart } from '../../lib/contract';
+import type { CartPageData } from '../../lib/shop/queries';
 import { cart, cartLine, menuItem, store } from '../../lib/shop/testing';
 import type { FormAction } from '../../lib/shop/types';
+import type { Store } from '../../lib/types';
 import { CartView } from './CartView';
 import { CategoryTabs } from './CategoryTabs';
 import { MenuGrid } from './MenuGrid';
@@ -13,6 +16,8 @@ const nav = vi.hoisted(() => ({ pathname: '/' }));
 vi.mock('next/navigation', () => ({ usePathname: () => nav.pathname, useRouter: () => ({ refresh: vi.fn() }) }));
 
 const noop: FormAction = async () => null;
+const cartActions = { qty: noop, fulfillment: noop, address: noop, slot: noop };
+const pageData = (c: Cart, s: Store | null, extra: Partial<CartPageData> = {}): CartPageData => ({ cart: c, store: s, zones: null, delivery: null, ...extra });
 
 beforeEach(() => {
   nav.pathname = '/';
@@ -203,7 +208,7 @@ describe('カート', () => {
   const full = cart({ lines, subtotal_lumi: 1380, total_lumi: 1380 });
 
   it('行ごとの数量（±と削除）。ボタンは絶対値（現在 ± 1・0）を送る', () => {
-    render(<CartView cart={full} store={store()} qtyAction={noop} />);
+    render(<CartView data={pageData(full, store())} actions={cartActions} />);
     const row = screen.getByText('オアシスブレンド').closest('li')!;
     expect(row.querySelector('input[name="variant_id"]')).toHaveValue('12');
     const less = within(row).getByRole('button', { name: 'オアシスブレンドを 1 つ減らす' });
@@ -217,30 +222,31 @@ describe('カート', () => {
   });
 
   it('20 個で + を無効にする', () => {
-    render(<CartView cart={cart({ lines: [cartLine({ qty: 20 })] })} store={store()} qtyAction={noop} />);
+    render(<CartView data={pageData(cart({ lines: [cartLine({ qty: 20 })] }), store())} actions={cartActions} />);
     expect(screen.getByRole('button', { name: 'オアシスブレンドを 1 つ増やす' })).toBeDisabled();
   });
 
-  it('小計・合計・店・受け取り方法（店頭のみ。宅配は準備中）', () => {
-    render(<CartView cart={full} store={store()} qtyAction={noop} />);
+  it('小計・合計・店・受け取り方法（店頭が選択中。宅配へ切り替えられる）', () => {
+    render(<CartView data={pageData(full, store())} actions={cartActions} />);
     const totals = screen.getByRole('heading', { name: 'お支払い金額' }).closest('section')!;
     expect(within(totals).getByText('小計').nextSibling).toHaveTextContent('1,380 ルミ');
     expect(within(totals).getByText('合計').nextSibling).toHaveTextContent('1,380 ルミ');
     expect(within(totals).queryByText('送料')).toBeNull();
     expect(screen.getByText('居住区本店')).toBeInTheDocument();
-    expect(screen.getByText(/店頭でお渡し/)).toBeInTheDocument();
-    expect(screen.getByText('宅配').closest('li')).toHaveTextContent('準備中');
+    expect(screen.getByText('店頭でお渡し').closest('li')).toHaveTextContent('選択中');
+    const toDelivery = screen.getByRole('button', { name: '受け取り方法を宅配にする' });
+    expect(toDelivery.closest('form')!.querySelector('input[name="fulfillment"]')).toHaveValue('delivery');
     expect(screen.getByRole('link', { name: '店を変える' })).toHaveAttribute('href', '/');
   });
 
   it('進める状態なら「注文内容を確認する」は /checkout へのリンク', () => {
-    render(<CartView cart={full} store={store()} qtyAction={noop} />);
+    render(<CartView data={pageData(full, store())} actions={cartActions} />);
     expect(screen.getByRole('link', { name: '注文内容を確認する' })).toHaveAttribute('href', '/checkout');
   });
 
   it('available=false の行は警告し、確認へは進めない（理由つき）', () => {
     const bad = cart({ lines: [cartLine({ available: false, unavailable_reason: 'sold_out' }), lines[1]!] });
-    render(<CartView cart={bad} store={store()} qtyAction={noop} />);
+    render(<CartView data={pageData(bad, store())} actions={cartActions} />);
     expect(screen.getByText('今は注文できません')).toBeInTheDocument();
     expect(screen.getByText(/売り切れのため/)).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('今は注文できない品が入っています');
@@ -255,16 +261,16 @@ describe('カート', () => {
   });
 
   it('選んだ店が営業外なら、確認へ進めない', () => {
-    render(<CartView cart={full} store={store({ accepting_orders: false, closed_reason: 'closed_today' })} qtyAction={noop} />);
+    render(<CartView data={pageData(full, store({ accepting_orders: false, closed_reason: 'closed_today' }))} actions={cartActions} />);
     expect(screen.getByRole('button', { name: '注文内容を確認する' })).toBeDisabled();
     expect(screen.getByText(/本日は定休日です/)).toBeInTheDocument();
   });
 
   it('空のカート: メニューへの案内。店が未選択: 店を選ぶリンクと、進めない理由', () => {
-    const { rerender } = render(<CartView cart={cart({ lines: [], subtotal_lumi: 0, total_lumi: 0 })} store={null} qtyAction={noop} />);
+    const { rerender } = render(<CartView data={pageData(cart({ lines: [], subtotal_lumi: 0, total_lumi: 0 }), null)} actions={cartActions} />);
     expect(screen.getByText('カートは空です。')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'メニューを見る' })).toHaveAttribute('href', '/');
-    rerender(<CartView cart={cart({ store: null })} store={null} qtyAction={noop} />);
+    rerender(<CartView data={pageData(cart({ store: null }), null)} actions={cartActions} />);
     expect(screen.getByRole('link', { name: '店を選ぶ' })).toBeInTheDocument();
     expect(screen.getByText('受け取る店を選んでください')).toBeInTheDocument();
   });

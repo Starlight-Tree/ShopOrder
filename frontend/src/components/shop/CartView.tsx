@@ -1,13 +1,18 @@
 import Link from 'next/link';
-import type { Cart, CartLine } from '../../lib/contract';
+import type { CartLine } from '../../lib/contract';
 import { formatLumi } from '../../lib/format';
 import { MAX_LINE_QTY } from '../../lib/shop/constants';
+import { freeShippingNote } from '../../lib/shop/delivery-view';
 import { unavailableReasonText, variantLabel } from '../../lib/shop/labels';
+import type { CartPageData } from '../../lib/shop/queries';
 import type { FormAction } from '../../lib/shop/types';
 import { checkoutBlockers } from '../../lib/shop/view';
-import type { Store } from '../../lib/types';
 import { ActionForm } from './ActionForm';
+import { FulfillmentPanel, type FulfillmentActions } from './FulfillmentPanel';
 import { SubmitButton } from './SubmitButton';
+import { Totals } from './Totals';
+
+export type CartActions = FulfillmentActions & { qty: FormAction };
 
 /** 行ごとの数量（−・＋・削除）。PUT /api/cart/items/{variant_id} へ、絶対値で送る */
 function CartLineRow({ line, qtyAction }: { line: CartLine; qtyAction: FormAction }) {
@@ -47,8 +52,9 @@ function CartLineRow({ line, qtyAction }: { line: CartLine; qtyAction: FormActio
   );
 }
 
-/** カート: 行・小計・合計・店・受け取り方法（店頭のみ）・「注文内容を確認する」 */
-export function CartView({ cart, store, qtyAction }: { cart: Cart; store: Store | null; qtyAction: FormAction }) {
+/** カート: 行・小計・送料・合計・店・受け取り方法（店頭・宅配。宅配はお届け先と時間枠）・「注文内容を確認する」 */
+export function CartView({ data, actions }: { data: CartPageData; actions: CartActions }) {
+  const { cart, store } = data;
   if (cart.lines.length === 0) {
     return (
       <div className="notice">
@@ -63,6 +69,7 @@ export function CartView({ cart, store, qtyAction }: { cart: Cart; store: Store 
   }
   const blockers = checkoutBlockers(cart, store);
   const hasUnavailable = cart.lines.some((l) => !l.available);
+  const freeNote = freeShippingNote(cart.delivery, cart.subtotal_lumi);
   return (
     <div className="shop-cart">
       {hasUnavailable ? (
@@ -71,61 +78,21 @@ export function CartView({ cart, store, qtyAction }: { cart: Cart; store: Store 
         </p>
       ) : null}
 
-      <section className="shop-panel" aria-labelledby="cart-store">
-        <h2 id="cart-store">受け取り</h2>
-        <dl className="shop-dl">
-          <div>
-            <dt>受け取る店</dt>
-            <dd>
-              {cart.store ? cart.store.name : '未選択'}
-              <Link href="/" className="shop-link-btn">
-                {cart.store ? '店を変える' : '店を選ぶ'}
-              </Link>
-            </dd>
-          </div>
-          <div>
-            <dt>受け取り方法</dt>
-            <dd>
-              <ul className="shop-methods">
-                <li className="shop-method shop-method-on">
-                  店頭でお渡し <span className="shop-tag-ok">選択中</span>
-                </li>
-                <li className="shop-method shop-method-off">
-                  宅配 <span className="tag">準備中</span>
-                </li>
-              </ul>
-            </dd>
-          </div>
-        </dl>
-      </section>
+      <FulfillmentPanel data={data} actions={actions} />
 
       <section aria-labelledby="cart-lines">
         <h2 id="cart-lines">ご注文の品</h2>
         <ul className="shop-lines">
           {cart.lines.map((line) => (
-            <CartLineRow key={line.variant_id} line={line} qtyAction={qtyAction} />
+            <CartLineRow key={line.variant_id} line={line} qtyAction={actions.qty} />
           ))}
         </ul>
       </section>
 
       <section className="shop-panel" aria-labelledby="cart-total">
         <h2 id="cart-total">お支払い金額</h2>
-        <dl className="shop-totals">
-          <div>
-            <dt>小計</dt>
-            <dd>{formatLumi(cart.subtotal_lumi)}</dd>
-          </div>
-          {cart.delivery_fee_lumi > 0 ? (
-            <div>
-              <dt>送料</dt>
-              <dd>{formatLumi(cart.delivery_fee_lumi)}</dd>
-            </div>
-          ) : null}
-          <div className="shop-total-row">
-            <dt>合計</dt>
-            <dd>{formatLumi(cart.total_lumi)}</dd>
-          </div>
-        </dl>
+        <Totals subtotalLumi={cart.subtotal_lumi} feeLumi={cart.delivery_fee_lumi} totalLumi={cart.total_lumi} delivery={cart.fulfillment === 'delivery'} />
+        {freeNote ? <p className="muted">{freeNote}</p> : null}
         {blockers.length === 0 ? (
           <p>
             <Link href="/checkout" prefetch={false} className="shop-btn shop-btn-primary shop-btn-block">

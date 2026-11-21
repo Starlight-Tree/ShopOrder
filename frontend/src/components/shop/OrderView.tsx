@@ -1,15 +1,18 @@
 import type { Order } from '../../lib/contract';
 import { formatLumi } from '../../lib/format';
 import { formatDateTime } from '../../lib/shop/format';
+import { fulfillmentText, pickupNoLabel } from '../../lib/shop/delivery-labels';
 import { variantLabel } from '../../lib/shop/labels';
 import { cancelReasonText, statusHeadline, statusLabel } from '../../lib/shop/order-steps';
 import type { FormAction } from '../../lib/shop/types';
 import { ActionForm } from './ActionForm';
 import { CancelOrderForm } from './CancelOrderForm';
+import { DeliverySection } from './DeliverySection';
 import { OrderAutoRefresh } from './OrderAutoRefresh';
 import { OrderStepper } from './OrderStepper';
 import { ReservationCountdown } from './ReservationCountdown';
 import { SubmitButton } from './SubmitButton';
+import { Totals } from './Totals';
 
 /** placed（確保済み・お支払い待ち）のときの、模擬の支払い・確保の残り時間 */
 function PayPanel({ order, serverNow, devTools, payAction }: { order: Order; serverNow: string; devTools: boolean; payAction: FormAction }) {
@@ -72,13 +75,13 @@ export function OrderView({
         <h1 id="order-title" className="shop-sr-only">
           ご注文の状況
         </h1>
-        <p className="muted">受け取り番号</p>
-        <p className="shop-pickup-no" aria-label={`受け取り番号 ${order.pickup_no}`}>
+        <p className="muted">{pickupNoLabel(order.fulfillment)}</p>
+        <p className="shop-pickup-no" aria-label={`${pickupNoLabel(order.fulfillment)} ${order.pickup_no}`}>
           {order.pickup_no}
         </p>
         <p className="shop-status" role="status">
-          <span className={`shop-status-badge shop-status-${order.status}`}>{statusLabel(order.status)}</span>
-          {statusHeadline(order.status)}
+          <span className={`shop-status-badge shop-status-${order.status}`}>{statusLabel(order.status, order.fulfillment)}</span>
+          {statusHeadline(order.status, order.fulfillment)}
         </p>
         <p className="muted">
           {order.store.name}・注文番号 {order.public_id}
@@ -98,10 +101,12 @@ export function OrderView({
           <p className="muted">在庫の確保は戻されています。支払い済みだった場合は、返金されます。</p>
         </section>
       ) : (
-        <OrderStepper status={order.status} events={order.events} />
+        <OrderStepper status={order.status} events={order.events} fulfillment={order.fulfillment} />
       )}
 
       {order.status === 'placed' ? <PayPanel order={order} serverNow={serverNow} devTools={devTools} payAction={payAction} /> : null}
+
+      <DeliverySection order={order} />
 
       <section className="shop-panel" aria-labelledby="order-items">
         <h2 id="order-items">ご注文の内容</h2>
@@ -118,26 +123,11 @@ export function OrderView({
             </li>
           ))}
         </ul>
-        <dl className="shop-totals">
-          <div>
-            <dt>小計</dt>
-            <dd>{formatLumi(order.subtotal_lumi)}</dd>
-          </div>
-          {order.delivery_fee_lumi > 0 ? (
-            <div>
-              <dt>送料</dt>
-              <dd>{formatLumi(order.delivery_fee_lumi)}</dd>
-            </div>
-          ) : null}
-          <div className="shop-total-row">
-            <dt>合計</dt>
-            <dd>{formatLumi(order.total_lumi)}</dd>
-          </div>
-        </dl>
+        <Totals subtotalLumi={order.subtotal_lumi} feeLumi={order.delivery_fee_lumi} totalLumi={order.total_lumi} delivery={order.fulfillment === 'delivery'} />
         <dl className="shop-dl">
           <div>
             <dt>受け取り方法</dt>
-            <dd>店頭でお渡し</dd>
+            <dd>{fulfillmentText(order.fulfillment)}</dd>
           </div>
           <div>
             <dt>注文日時</dt>

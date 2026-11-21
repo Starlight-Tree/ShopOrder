@@ -103,7 +103,7 @@ describe('カート /cart', () => {
       if (r.path === '/api/cart') return { body: cart() };
       if (r.path === '/api/stores') return { body: [store({ accepting_orders: false, closed_reason: 'closed_today' })] };
     });
-    render(await CartPage());
+    render(await CartPage({ searchParams: noParams }));
     expect(screen.getByRole('button', { name: '注文内容を確認する' })).toBeDisabled();
     expect(screen.getByText(/本日は定休日です/)).toBeInTheDocument();
   });
