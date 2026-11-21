@@ -5,11 +5,11 @@ FastAPI + psycopg3（`backend/`）、Next.js + TypeScript（`frontend/`）、Pos
 入口は [README.md](README.md)。要件は [docs/requirements.md](docs/requirements.md)、全体設計は [docs/architecture.md](docs/architecture.md)、段階は [docs/roadmap.md](docs/roadmap.md)。**世界観・店・メニュー・価格・宅配の設定の正本は [docs/world.md](docs/world.md)。** 文書ごとの正本の表は [docs/CLAUDE.md](docs/CLAUDE.md)。
 領域ごとの規約は各 `CLAUDE.md`（まだ無い領域は、このファイルが正）、パス別の規則は `.claude/rules/`、読み取り専用の調査・レビュー担当は `.claude/agents/`。
 
-## 状態（2026-11-21 19 時時点。見たもの: `git log`・`backend/app/migrations/`・`frontend/app/`・各文書の「状態」）
+## 状態（2026-11-21 23 時時点。見たもの: `git log`・`backend/app/migrations/`・`frontend/app/`・各文書の「状態」）
 
-P0・P1 は済み。**P2（宅配）・P3（チャット）・P4（分析）は、バックエンドと評価まで `main` に取り込み済み**（マイグレーション 0001〜0008。0005 宅配・0006 分析・0007 チャット・0008 名前の整理）。画面は、顧客の店頭受け取りの注文（`/`）、店のスタッフ（`/staff`。調理ボードと在庫）、店長の分析（`/manager`。店頭受け取りの分）まで。段階ごとの状態と残りの正本は [docs/roadmap.md](docs/roadmap.md)。
+P0・P1 は済み。**P2（宅配）・P3（チャット）・P4（分析）は、バックエンドと評価まで `main` に取り込み済み**（マイグレーション 0001〜0008。0005 宅配・0006 分析・0007 チャット・0008 名前の整理）。画面は、顧客の注文（`/`。店頭受け取りと宅配。宅配は住所・時間枠・受け取り PIN・進み具合）、店のスタッフ（`/staff`。調理ボード・在庫・配車 `/staff/dispatch`・配達員 `/staff/courier`）、店長の分析（`/manager`。店頭受け取りの分）まで。宅配の画面は、`main` に統合済み（2026-11-21。単体テストと `scripts/verify.sh frontend lint` は合格。ブラウザーでの役割別の確認は、最後の修正の前に実施）。段階ごとの状態と残りの正本は [docs/roadmap.md](docs/roadmap.md)。
 
-- **画面が未着手:** 宅配（顧客の住所・時間枠・受け取り PIN、配達員・配車。API クライアントまで）、チャット（模擬モデルのみ。評価は `evals/`）、宅配の分析。
+- **画面が未着手:** チャット（模擬モデルのみ。評価は `evals/`）、宅配の分析。
 - **未着手:** P5 の通知・連絡スレッド・個別の顧客の画面（顧客の集計〔RFM・コホート〕は P4 に入っている）。P6（実 LLM・実決済・公開先）は見送り。
 - **環境:** 開発は開発コンテナ（`.devcontainer/`。手順は [docs/development.md](docs/development.md)）。Git のリモートは GitHub の `Starlight-Tree/ShopOrder`（公開。`main` のみ）。E2E（Playwright）は未導入。ブラウザーでの目視は一部が未実施（[docs/analytics.md](docs/analytics.md) の「未確認」）。
 
