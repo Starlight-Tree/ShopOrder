@@ -42,10 +42,13 @@ dev はワークスペース全体を書き込み可で持つが、`.devcontaine
 | バックエンド | `cd backend && TEST_DATABASE_URL=<URL> .venv/bin/python -m pytest -q -rs` | 使い捨ての Postgres 17。`backend/.venv` に `requirements.txt` と `requirements-dev.in` を入れる |
 | 評価（チャット） | `cd evals && TEST_DATABASE_URL=<URL> ../backend/.venv/bin/python -m pytest -q` | 同上。実 API は呼ばない。**CI にも `scripts/verify.sh` にも、まだ入っていない**（[evals/README.md](../evals/README.md)） |
 | フロントエンド | `cd frontend && npm ci && npm test && npm run build && npm run typecheck` | Node 24。`typecheck` は `build` の後 |
+| E2E（実ブラウザー） | `cd frontend && npm run test:e2e` | Playwright（Chromium）。**開発コンテナで流す。** 使い捨ての `test-db` に `shop_order_e2e` を作り直し、API（`backend/tests/e2e_server.py`。ダミーの履歴 90 日つき。ポート 8401）と画面（`next build` → `next start`。ポート 3401）を立てる。`backend/.venv` と `TEST_DATABASE_URL` が要る。Chromium は、コンテナの作成後に `npx playwright install chromium` で 1 回取得する（`~/.cache/ms-playwright`。作り直すと消える。約 120 MB）。決済・配達・通知・チャットは模擬で、実 API は呼ばない |
 | まとめて | `scripts/verify.sh [backend\|frontend\|lint\|all]` | 依存は先に入れておく（インストールはしない）。バックエンドの段は、`TEST_DATABASE_URL` を環境変数で渡さないか、そのホストが localhost・127.0.0.1・[::1] 以外だと「未実行」（使い捨てのサーバーなら、`VERIFY_ALLOW_REMOTE_DB` にそのホスト名を入れて解除。完全一致）。終了コード: 0 = すべて合格 / 1 = 失敗あり / 2 = 未実行がある / 64 = 引数の誤り |
 
 - `TEST_DATABASE_URL` が指すサーバーでは、テスト用の DB を `DROP DATABASE IF EXISTS` → `CREATE` で作り直す。**使い捨てのサーバーに向ける。** 消す前に、`backend/tests/guards.py` が、ホスト（`test-db`・`localhost`・`127.0.0.1`・`::1` だけ）と DB 名（`shop_order_*` だけ）を完全一致で検査し、外れれば止まる（`evals/` も同じ）。無いと、DB を使うテストは飛ばされる（CI は、スキップが 1 件でもあれば落とす）。
 - 使い捨ての Postgres の例: `docker run -d --rm --name shoporder-test-pg -p 127.0.0.1:55432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17`（URL は `postgresql://postgres@127.0.0.1:55432/postgres`）。
+- E2E（`frontend/e2e/`、2026-11-22 に導入）の範囲: 店頭受け取りの通し（顧客 → スタッフ → 顧客。他店のスタッフに出ない確認つき）、宅配の通し（住所・時間枠 → 調理 → 配車 → 配達員 → 暗証コード。集荷前は暗証コードが出ない確認つき）、店長の分析（グラフの描画・390px の横スクロール・週月の切り替え・店の切り替え・「表で見る」・ツールチップ・コホートの表・ダーク）。テストごとに顧客の開発用ログイン名（Cookie）を分ける（`e2e/support/accounts.ts`）。`scripts/verify.sh` にはまだ入っていない（CI の `e2e` ジョブと、上のコマンドで流す）。
+- E2E のためにイメージへ足したもの: Chromium に要るライブラリーとフォント（`.devcontainer/Dockerfile`。ヘッドレスなので xvfb は入れない）。足した後は、開発コンテナの再ビルドが要る（ホストで行う）。
 - ホストの `node_modules` は、Linux 用のことがある。動かなければ、スクラッチのコピーで `npm ci` して流す（`scripts/verify.sh` の冒頭）。
 
 ## マイグレーション
