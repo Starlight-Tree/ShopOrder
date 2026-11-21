@@ -125,7 +125,10 @@ def _assemble(conn: Connection, rows: list[dict], now: datetime, *, staff: bool)
         for ev in conn.execute(
             "SELECT order_id, to_status, at, actor_type, reason FROM order_events WHERE order_id = ANY(%s) ORDER BY id", (ids,)
         ).fetchall():
-            events[ev["order_id"]].append({"to_status": ev["to_status"], "at": clock.iso(ev["at"]), "actor_type": ev["actor_type"], "reason": ev["reason"]})
+            reason = ev["reason"]
+            if not staff and reason is not None and reason.startswith("courier:"):
+                reason = None  # 配達員の内部 ID は顧客へ返さない（docs/api.md「courier は名前だけ」）
+            events[ev["order_id"]].append({"to_status": ev["to_status"], "at": clock.iso(ev["at"]), "actor_type": ev["actor_type"], "reason": reason})
     deliveries = delivery.views_for_orders(conn, [r["id"] for r in rows if r["fulfillment"] == "delivery"], staff=staff, now=now)
     result = []
     for r in rows:
