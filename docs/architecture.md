@@ -53,7 +53,7 @@
 | DocuNavi `guardrails.py`・`graph.py`・`tools.py`・`resilience.py`・`ui_stream.py`・`routes.py` | `app/chat/` | プロンプト・ツールを注文用に。確定系のツールは置かない |
 | DocuNavi `useChat.ts`・`MessageList`・`Composer` | `frontend/src/chat/` | 出典カードを商品・カート・確認カードに |
 | DocuNavi の評価（golden・規則ベースの評価器） | `evals/` | 確定が 0 回・他人の注文が出ない・価格が結果にある |
-| 両方の `.claude/`・`CLAUDE.md` の構成・ADR | 済み（`.claude/`・`docs/decisions/`） | oasis-order 向けに書き直し済み |
+| 両方の `.claude/`・`CLAUDE.md` の構成・ADR | 済み（`.claude/`・`docs/decisions/`） | ShopOrder 向けに書き直し済み |
 
 ## ディレクトリ
 

@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-oasis-order（仮名。ユーザーが決めたら変える）。架空の惑星ザーハード、アルカ市の「オアシス珈琲」（12 店舗）の、**商品の注文と宅配のアプリ**。画面で注文でき、チャットで注文を手配でき、配達まで通る。売上・在庫・顧客の分析がある。データはすべてダミー。
+ShopOrder。架空の惑星ザーハード、アルカ市の「オアシス珈琲」（12 店舗）の、**商品の注文と宅配のアプリ**。画面で注文でき、チャットで注文を手配でき、配達まで通る。売上・在庫・顧客の分析がある。データはすべてダミー。
 FastAPI + psycopg3（`backend/`）、Next.js + TypeScript（`frontend/`）、Postgres 17、Docker Compose。JobNavi を土台に、チャットの部品を DocuNavi から写す（[ADR 0002](docs/decisions/0002-stack-based-on-jobnavi.md)）。
 入口は [README.md](README.md)。要件は [docs/requirements.md](docs/requirements.md)、全体設計は [docs/architecture.md](docs/architecture.md)、段階は [docs/roadmap.md](docs/roadmap.md)。**世界観・店・メニュー・価格・宅配の設定の正本は [docs/world.md](docs/world.md)。** 文書ごとの正本の表は [docs/CLAUDE.md](docs/CLAUDE.md)。
 領域ごとの規約は各 `CLAUDE.md`（まだ無い領域は、このファイルが正）、パス別の規則は `.claude/rules/`、読み取り専用の調査・レビュー担当は `.claude/agents/`。

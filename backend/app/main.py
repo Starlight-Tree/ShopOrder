@@ -33,7 +33,7 @@ async def lifespan(_: FastAPI):
     close_pool()
 
 
-app = FastAPI(title="Oasis Order API", lifespan=lifespan)
+app = FastAPI(title="ShopOrder API", lifespan=lifespan)
 # CORS は GET のまま。書き込みの API は、画面のサーバー側（Next.js）から呼ぶ（ブラウザーは API を直接呼ばない）
 app.add_middleware(CORSMiddleware, allow_origins=cors_origins(), allow_methods=["GET"], allow_headers=["*"])
 app.include_router(cart_routes.router)

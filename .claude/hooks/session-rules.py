@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SessionStart（resume / compact）: oasis-order の重要ルールの固定文を文脈へ入れる。
+"""SessionStart（resume / compact）: ShopOrder の重要ルールの固定文を文脈へ入れる。
 
 会話の再開・圧縮のあとに、CLAUDE.md の要点が抜けるのを防ぐ。決定は返さず、読み込みに失敗しても作業は止めない。
 固定文だけを出す（ファイルの読み込み・外部への通信・環境変数の参照はしない）。詳細は CLAUDE.md と docs/。
@@ -7,7 +7,7 @@
 import json
 
 MAX_CHARS = 1200  # 超えたら注入しない（長文の事故防止）
-RULES = """【再注入: oasis-order の重要ルール】
+RULES = """【再注入: ShopOrder の重要ルール】
 ■必ず守る
 1. 世界観（店・地名・通貨ルミ・メニュー・価格）は docs/world.md が正本。資料に無い設定は「新設」と書き、資料の事実として扱わない。金額はルミの整数。
 2. チャット（AI）は、人の確認なしに注文の確定・決済・個人情報の変更をしない。権限は API が毎回確認し、他人の注文は 404。

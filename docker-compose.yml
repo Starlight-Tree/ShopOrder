@@ -1,4 +1,4 @@
-# oasis-order のローカル開発用（Postgres 17 + FastAPI + Next.js）。
+# ShopOrder のローカル開発用（Postgres 17 + FastAPI + Next.js）。
 #   docker compose up -d --build    # 起動（マイグレーションもダミーデータも流さない）
 #   初めての環境は、先に README の「Quick start」の手順（db → migrate → seed）を実行する
 #   http://localhost:3400            # 画面
