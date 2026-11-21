@@ -16,6 +16,8 @@ type Props = {
 /** 砂嵐の警報（区画の停止）。状態は全員に見せ、操作は店長だけ。立てるときは、影響を示して確かめる */
 export function ZonePanel({ zones, canSuspend, busy, onSuspension }: Props) {
   const [confirmId, setConfirmId] = useState<number | null>(null);
+  // 確認を開いている間に、その区画が警報中になった（他の人が立てた）ら、確認は閉じる。そのままにすると、解除されたときに、押していない確認が開いて出る
+  if (confirmId !== null && zones?.some((z) => z.id === confirmId && z.is_suspended)) setConfirmId(null);
   return (
     <section className="st-panel" aria-labelledby="st-zones-title">
       <h2 id="st-zones-title" className="st-panel-title">

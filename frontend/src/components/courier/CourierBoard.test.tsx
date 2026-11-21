@@ -107,6 +107,15 @@ describe('一覧とカードの中身', () => {
     expect(screen.getByText('11/22 13:00〜13:30')).toBeInTheDocument();
   });
 
+  it('offsetHours を変えると、枠の時刻もずれる（UTC 04:00 は、UTC+0 なら 04:00、UTC+13 なら 17:00）', () => {
+    const slot = { id: 1, starts_at: '2026-11-22T04:00:00Z', ends_at: '2026-11-22T04:30:00Z' };
+    const { unmount } = render(<CourierBoard deliveries={[delivery({ slot })]} now={NOW} offsetHours={0} onAct={okAct()} />);
+    expect(screen.getByText('11/22 04:00〜04:30')).toBeInTheDocument();
+    unmount();
+    render(<CourierBoard deliveries={[delivery({ slot })]} now={NOW} offsetHours={13} onAct={okAct()} />);
+    expect(screen.getByText('11/22 17:00〜17:30')).toBeInTheDocument();
+  });
+
   it('API の順（枠の開始が早い順）のまま並べる', () => {
     renderBoard({
       deliveries: [delivery({ public_id: 'A0000001', pickup_no: 7 }), delivery({ public_id: 'A0000002', pickup_no: 3 })],

@@ -375,10 +375,14 @@ describe('割り当て', () => {
     const base = { provider: 'inhouse' as const, orders: [dispatchOrder({ suggestion: null })] };
     const handlers = { onAssign: okAction(), onRedeliver: okAction(), onMockAdvance: okAction(), onCancel: okAction(), onSuspension: okAction() };
     const common = { zones: [], now: NOW, utcOffsetHours: 9, stores: null, showStoreSelect: false, selectedStoreId: null, canSuspend: false, ...handlers };
-    const { rerender } = render(<DispatchBoard board={{ ...base, couriers: [courier({ id: 7 })] }} {...common} />);
+    // 別の勤務中の配達員（10）が残っているので、ボタンは押せる。送信の守り（選んだ 7 は勤務外）だけが止める
+    const { rerender } = render(<DispatchBoard board={{ ...base, couriers: [courier({ id: 7 }), courier({ id: 10, name: 'ユスラ' })] }} {...common} />);
     fireEvent.change(screen.getByRole('combobox', { name: '配達員' }), { target: { value: '7' } });
-    rerender(<DispatchBoard board={{ ...base, couriers: [courier({ id: 7, is_on_duty: false })] }} {...common} />);
-    fireEvent.click(screen.getByRole('button', { name: '割り当てる' }));
+    rerender(<DispatchBoard board={{ ...base, couriers: [courier({ id: 7, is_on_duty: false }), courier({ id: 10, name: 'ユスラ' })] }} {...common} />);
+    const button = screen.getByRole('button', { name: '割り当てる' });
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    expect(screen.getByRole('alert')).toHaveTextContent('勤務中の配達員を選んでください');
     expect(handlers.onAssign).not.toHaveBeenCalled();
   });
 });
@@ -422,7 +426,7 @@ describe('取消し（理由が必須）', () => {
     const { onCancel } = setup();
     fireEvent.click(screen.getByRole('button', { name: '取消し' }));
     expect(screen.getByLabelText('取消しの理由（必須）')).toBeInTheDocument();
-    expect(screen.getByText(/枠の確保の取り消し/)).toBeInTheDocument();
+    expect(screen.getByText(/配達の枠の取り消し/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '取消しを確定する' }));
     expect(await screen.findByText('取消しの理由を入力してください')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('取消しの理由（必須）'), { target: { value: '   ' } });
@@ -565,6 +569,21 @@ describe('砂嵐の警報（区画の停止）', () => {
     fireEvent.click(screen.getByRole('button', { name: '警報を立てて受付を止める' }));
     await waitFor(() => expect(onSuspension).toHaveBeenCalledWith({ zoneId: 1, suspended: true }));
     await waitFor(() => expect(screen.queryByRole('group', { name: '居住区の警報の確認' })).toBeNull());
+  });
+
+  it('確認を開いている間に、他の人が警報を立てて、また解除したら、確認は閉じたまま（押していない確認が開いて出ない）', () => {
+    const base = { provider: 'inhouse' as const, couriers: [], orders: [] };
+    const handlers = { onAssign: okAction(), onRedeliver: okAction(), onMockAdvance: okAction(), onCancel: okAction(), onSuspension: okAction() };
+    const common = { now: NOW, utcOffsetHours: 9, stores: null, showStoreSelect: false, selectedStoreId: null, canSuspend: true, ...handlers };
+    const calm = [zone({ id: 1, name: '居住区' })];
+    const { rerender } = render(<DispatchBoard board={base} zones={calm} {...common} />);
+    fireEvent.click(screen.getByRole('button', { name: '居住区の警報を立てる' }));
+    expect(screen.getByRole('group', { name: '居住区の警報の確認' })).toBeInTheDocument();
+    rerender(<DispatchBoard board={base} zones={[zone({ id: 1, name: '居住区', is_suspended: true })]} {...common} />);
+    expect(screen.queryByRole('group', { name: '居住区の警報の確認' })).toBeNull();
+    rerender(<DispatchBoard board={base} zones={calm} {...common} />);
+    expect(screen.queryByRole('group', { name: '居住区の警報の確認' })).toBeNull();
+    expect(screen.getByRole('button', { name: '居住区の警報を立てる' })).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('店長: 確認で「やめる」なら、立てない', () => {

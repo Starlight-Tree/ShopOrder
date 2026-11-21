@@ -26,6 +26,12 @@ describe('dispatchFailureFrom（宅配の操作の失敗）', () => {
     expect(dispatchFailureFrom(res(status, code, LEAK))).toEqual({ kind, message, refresh });
   });
 
+  it('取消しの説明は、配達の枠が戻ること・使った在庫は戻らないことを示す（配車ボードの注文は準備が済んでいる）', () => {
+    expect(DISPATCH_MSG.cancelHint).toContain('返金');
+    expect(DISPATCH_MSG.cancelHint).toContain('配達の枠');
+    expect(DISPATCH_MSG.cancelHint).toContain('在庫は戻りません');
+  });
+
   it('再配達で枠が無い・砂嵐のときの文は、理由と次の手を示す', () => {
     expect(DISPATCH_MSG.noSlot).toContain('枠');
     expect(DISPATCH_MSG.zoneSuspended).toContain('砂嵐');
