@@ -1,4 +1,6 @@
 import os
+import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -17,6 +19,19 @@ def new_database(name: str) -> str:
     return TEST_URL.rsplit("/", 1)[0] + "/" + name
 
 
+@pytest.fixture(autouse=True)
+def _dev_defaults(monkeypatch):
+    """既定: 営業時間は見ない（開発の便宜。docker-compose.yml と同じ）。見るテストは、monkeypatch.setenv('ORDER_HOURS_CHECK', 'on') で戻す。時計は、毎回、実時間へ戻す。"""
+    from app import clock
+
+    monkeypatch.setenv("ORDER_HOURS_CHECK", "off")
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.delenv("AUTH_MODE", raising=False)
+    monkeypatch.delenv("LOCAL_UTC_OFFSET_HOURS", raising=False)
+    yield
+    clock.freeze(None)
+
+
 @pytest.fixture(scope="session")
 def client():
     if not TEST_URL:
@@ -25,6 +40,7 @@ def client():
 
     test_url = new_database("oasis_test")
     os.environ["DATABASE_URL"] = test_url
+    os.environ["DEMO_STAFF_PASSWORD"] = "test-staff-pass"
     from app import migrate, seed_demo
 
     assert migrate.apply(test_url, out=lambda *_: None) == 0
@@ -33,3 +49,19 @@ def client():
 
     with TestClient(app) as c:
         yield c
+
+
+@pytest.fixture(scope="session")
+def shop(client):
+    from tests.helpers import Shop
+
+    return Shop(client, os.environ["DATABASE_URL"])
+
+
+def at_local(year: int, month: int, day: int, hour: int, minute: int = 0, second: int = 0, offset_hours: int = 9) -> datetime:
+    """店のローカル時刻（既定 UTC+9）を、タイムゾーンつきの日時にする（clock.freeze に渡す）。"""
+    return datetime(year, month, day, hour, minute, second, tzinfo=timezone(timedelta(hours=offset_hours)))
+
+
+def unique_name(prefix: str = "t") -> str:
+    return f"{prefix}-{uuid.uuid4().hex[:12]}"

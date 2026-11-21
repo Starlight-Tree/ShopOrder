@@ -15,6 +15,44 @@ def cors_origins() -> list[str]:
     return [o.strip() for o in raw.split(",") if o.strip()]
 
 
+def app_env() -> str:
+    """development（既定）/ production など。production では、開発専用の設定（AUTH_MODE=dev・ORDER_HOURS_CHECK=off）で起動しない。"""
+    return os.environ.get("APP_ENV", "development")
+
+
+AUTH_MODES = ("dev",)  # 顧客の認証。dev = ヘッダー X-Dev-User（開発専用）。本物のログイン（Better Auth・JWT）は P6
+
+
+def auth_mode() -> str:
+    value = os.environ.get("AUTH_MODE", "dev")
+    if value not in AUTH_MODES:
+        raise RuntimeError(f"AUTH_MODE は {' / '.join(AUTH_MODES)} のどれかにしてください（本物のログインは P6）")
+    return value
+
+
+def order_hours_check() -> bool:
+    """営業時間・定休日・ラストオーダー・販売時間帯を見るか。既定は on。off は開発の便宜（季節の期間は off でも見る）。環境変数は呼ぶたびに読む。"""
+    value = os.environ.get("ORDER_HOURS_CHECK", "on")
+    if value not in ("on", "off"):
+        raise RuntimeError("ORDER_HOURS_CHECK は on / off のどちらかにしてください")
+    return value == "on"
+
+
+def local_utc_offset_hours() -> int:
+    raw = os.environ.get("LOCAL_UTC_OFFSET_HOURS", "9")
+    try:
+        hours = int(raw)
+    except ValueError as exc:
+        raise RuntimeError("LOCAL_UTC_OFFSET_HOURS は整数にしてください") from exc
+    if not -12 <= hours <= 14:
+        raise RuntimeError("LOCAL_UTC_OFFSET_HOURS は -12〜14 の整数にしてください")
+    return hours
+
+
+def db_pool_max() -> int:
+    return max(2, int(os.environ.get("DB_POOL_MAX", "10")))
+
+
 def required_env(name: str) -> str:
     value = os.environ.get(name, "")
     if not value:

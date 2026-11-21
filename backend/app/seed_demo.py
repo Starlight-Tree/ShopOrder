@@ -1,17 +1,20 @@
 """ローカル用のダミーデータ（架空の惑星ザーハード、アルカ市のオアシス珈琲）を入れる。実在の店・人・企業のデータは使わない。
 
-    DEMO_DATA=allow python -m app.seed_demo            # 足りないものを入れる（何度流しても同じ。価格などは書き直す）
-    DEMO_DATA=allow python -m app.seed_demo --reset    # 店・メニューを消して入れ直す
+    DEMO_DATA=allow python -m app.seed_demo            # 足りないものを入れる（何度流しても同じ。価格・レシピ・スタッフは書き直す。在庫の数は上書きしない）
+    DEMO_DATA=allow python -m app.seed_demo --reset    # 店・メニュー・在庫・注文・スタッフを消して入れ直す（台帳の削除は、このときだけ許す）
 
 店・営業時間・席は docs/world.md の「店舗（12）」（資料: cafe_store_guide.md）。メニューと価格は「新設」の参考値（docs/world.md の表）。
 **資料の事実（店・席・営業時間）と、新設の値（メニュー・価格）を、ここでも混ぜない。** 世界観の値を変えるときは、docs/world.md を先に直す。
+在庫の品目・レシピ（変種ごとの使用量）・初期在庫・デモのスタッフは、すべて新設のダミー（docs/decisions/0004「レシピの使用量はダミー」）。
 本番の DB には向けない。DEMO_DATA=allow が無いと、実行を拒否する。
 """
 
+import os
 import sys
-from datetime import time
+from datetime import datetime, time, timezone
 
 import psycopg
+from argon2 import PasswordHasher
 
 from app.settings import database_url, require_demo_data_allowed
 
@@ -59,14 +62,81 @@ MENU = [
 ]
 
 
+# ---- 在庫（新設のダミー） ----
+# (code, 名前, 区分, 単位, 発注点, 安全在庫, 席 40 の店の初期在庫)。初期在庫は、店の席数に比例させる（決定的。乱数なし）。
+STOCK_ITEMS = [
+    ("coffee-beans", "コーヒー豆", "material", "g", 2000, 500, 12000),
+    ("milk", "牛乳", "material", "ml", 4000, 1000, 20000),
+    ("matcha", "抹茶", "material", "g", 150, 50, 800),
+    ("tea-leaves", "紅茶葉", "material", "g", 150, 50, 900),
+    ("cup-s", "カップ S", "material", "個", 40, 10, 200),
+    ("cup-m", "カップ M", "material", "個", 60, 10, 300),
+    ("cup-l", "カップ L", "material", "個", 40, 10, 200),
+    ("bread", "パン", "material", "個", 15, 5, 60),
+    ("hot-sandwich", "ホットサンド", "sellable", "個", 6, 0, 30),
+    ("meat-pie", "ミートパイ", "sellable", "個", 6, 0, 24),
+    ("cheesecake", "チーズケーキ", "sellable", "個", 6, 0, 24),
+    ("gateau-chocolat", "ガトーショコラ", "sellable", "個", 5, 0, 20),
+    ("beans-bag-oasis", "オアシスブレンドの豆（200 g）", "sellable", "袋", 8, 0, 40),
+    ("beans-bag-seasonal", "季節のブレンドの豆（200 g）", "sellable", "袋", 6, 0, 30),
+]
+# 売り切れを再現するための、少量の在庫（店の code, 品目の code）→ 個数
+LOW_STOCK = {("terminal-west", "gateau-chocolat"): 3}
+
+_BEANS_G = {"S": 14, "M": 18, "L": 22}
+_MILK_ML = {"S": 150, "M": 200, "L": 250}
+_CAPPUCCINO_MILK_ML = {"S": 120, "M": 160, "L": 200}
+_MATCHA_G = {"S": 4, "M": 5, "L": 6}
+_TEA_G = {"S": 3, "M": 4, "L": 5}
+_CUP = {"S": "cup-s", "M": "cup-m", "L": "cup-l"}
+_SELLABLE_FOOD = {"hot-sandwich", "meat-pie", "cheesecake", "gateau-chocolat"}
+
+
+def recipe(item_code: str, size: str) -> list[tuple[str, int]]:
+    """変種 1 つ（ドリンク 1 杯・菓子 1 個など）の使用量 [(在庫品目の code, 量)]。ホットとアイスは同じ。"""
+    if item_code in ("oasis-blend", "seasonal-blend", "kikan-limited", "americano"):
+        return [("coffee-beans", _BEANS_G[size]), (_CUP[size], 1)]
+    if item_code == "cafe-latte":
+        return [("coffee-beans", _BEANS_G[size]), ("milk", _MILK_ML[size]), (_CUP[size], 1)]
+    if item_code == "cappuccino":
+        return [("coffee-beans", _BEANS_G[size]), ("milk", _CAPPUCCINO_MILK_ML[size]), (_CUP[size], 1)]
+    if item_code == "matcha-latte":
+        return [("matcha", _MATCHA_G[size]), ("milk", _MILK_ML[size]), (_CUP[size], 1)]
+    if item_code == "black-tea":
+        return [("tea-leaves", _TEA_G[size]), (_CUP[size], 1)]
+    if item_code in _SELLABLE_FOOD:
+        return [(item_code, 1)]
+    if item_code == "morning-set":
+        return [("coffee-beans", _BEANS_G["S"]), ("cup-s", 1), ("bread", 1)]
+    if item_code == "beans-oasis":
+        return [("beans-bag-oasis", 1)]
+    if item_code == "beans-seasonal":
+        return [("beans-bag-seasonal", 1)]
+    raise ValueError(f"レシピが未定義の品です: {item_code}")
+
+
 def _t(hm: tuple[int, int]) -> time:
     return time(hm[0], hm[1])
+
+
+def _staff_password() -> str:
+    return os.environ.get("DEMO_STAFF_PASSWORD") or "oasis-demo-pass"  # ダミーで、秘密ではない（docs/api.md）
+
+
+# リセットで消す順（外部キーの子から親へ）。台帳（stock_movements・order_events）は、SET LOCAL oasis.allow_ledger_reset = 'on' のときだけ消せる
+_RESET_ORDER = (
+    "loyalty_ledger", "stock_reservation_lines", "stock_reservations", "payments", "idempotency_keys", "order_events", "order_items", "orders",
+    "store_order_counters", "checkout_proposals", "cart_items", "carts", "users", "staff_sessions", "staff_login_attempts", "staff_accounts",
+    "stock_movements", "stock_balances", "recipe_lines", "stock_items",
+    "menu_variants", "menu_items", "store_closures", "stores", "areas",
+)
 
 
 def main(reset: bool = False, url: str | None = None) -> None:
     with psycopg.connect(url or database_url()) as conn:
         if reset:
-            for table in ("menu_variants", "menu_items", "store_closures", "stores", "areas"):
+            conn.execute("SET LOCAL oasis.allow_ledger_reset = 'on'")  # このトランザクションの中だけ。追記のみの表の DELETE を通す
+            for table in _RESET_ORDER:
                 conn.execute(f"DELETE FROM {table}")  # noqa: S608（固定の表名。ダミーの入れ直しだけ）
         for code, name, sort in AREAS:
             conn.execute(
@@ -97,7 +167,60 @@ def main(reset: bool = False, url: str | None = None) -> None:
                     "ON CONFLICT (item_id, size, temperature) DO UPDATE SET price_lumi = EXCLUDED.price_lumi",
                     (item_id, size, temperature, price),
                 )
-    print(f"店 {len(STORES)} 件・メニュー {len(MENU)} 品を入れました")
+        _seed_inventory(conn)
+        _seed_staff(conn)
+    print(f"店 {len(STORES)} 件・メニュー {len(MENU)} 品・在庫の品目 {len(STOCK_ITEMS)} 件・デモのスタッフ {len(STORES) + 1} 人を入れました")
+
+
+def _seed_inventory(conn: psycopg.Connection) -> None:
+    for code, name, kind, unit, reorder_point, safety_stock, _ in STOCK_ITEMS:
+        conn.execute(
+            "INSERT INTO stock_items (code, name, kind, unit, reorder_point, safety_stock) VALUES (%s, %s, %s, %s, %s, %s) "
+            "ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, kind = EXCLUDED.kind, unit = EXCLUDED.unit, "
+            "reorder_point = EXCLUDED.reorder_point, safety_stock = EXCLUDED.safety_stock",
+            (code, name, kind, unit, reorder_point, safety_stock),
+        )
+    stock_ids = {r[0]: r[1] for r in conn.execute("SELECT code, id FROM stock_items")}
+    # レシピ: 全ての変種に必要（足りなければ、ここで止める。注文が「材料なしで通る」品を作らない）
+    variants = conn.execute("SELECT v.id, i.code, v.size FROM menu_variants v JOIN menu_items i ON i.id = v.item_id ORDER BY v.id").fetchall()
+    for variant_id, item_code, size in variants:
+        lines = recipe(item_code, size)
+        conn.execute("DELETE FROM recipe_lines WHERE variant_id = %s", (variant_id,))
+        for stock_code, qty in lines:
+            conn.execute("INSERT INTO recipe_lines (variant_id, stock_item_id, qty) VALUES (%s, %s, %s)", (variant_id, stock_ids[stock_code], qty))
+    # 残高: 無い店・品目だけ入れる（再実行しても、今の在庫を上書きしない）。台帳には、初期在庫の receive を同時に追記する（台帳と残高を合わせる）
+    now = datetime.now(timezone.utc)
+    stores = conn.execute("SELECT id, code, seats FROM stores ORDER BY id").fetchall()
+    for store_id, store_code, seats in stores:
+        for code, _name, _kind, _unit, _rp, _ss, base in STOCK_ITEMS:
+            qty = LOW_STOCK.get((store_code, code), max(1, round(base * seats / 40)))
+            inserted = conn.execute(
+                "INSERT INTO stock_balances (store_id, item_id, on_hand, reserved, updated_at) VALUES (%s, %s, %s, 0, %s) ON CONFLICT (store_id, item_id) DO NOTHING RETURNING item_id",
+                (store_id, stock_ids[code], qty, now),
+            ).fetchone()
+            if inserted is not None:
+                conn.execute(
+                    "INSERT INTO stock_movements (store_id, item_id, kind, qty, ref_type, reason, actor, occurred_at) VALUES (%s, %s, 'receive', %s, 'seed', %s, 'seed', %s)",
+                    (store_id, stock_ids[code], qty, "初期在庫（ダミー）", now),
+                )
+
+
+def _seed_staff(conn: psycopg.Connection) -> None:
+    """デモのスタッフ（docs/api.md）: 各店 staff-<店の code>@oasis-cafe.example、店長（全店）manager@oasis-cafe.example。パスワードは DEMO_STAFF_PASSWORD。"""
+    hasher = PasswordHasher()
+    password = _staff_password()
+    accounts = [(f"staff-{code}@oasis-cafe.example", f"{name}のスタッフ", "staff", code) for code, name, *_ in STORES]
+    accounts.append(("manager@oasis-cafe.example", "店長（全店）", "manager", None))
+    for email, name, role, store_code in accounts:
+        store_id = None
+        if store_code is not None:
+            store_id = conn.execute("SELECT id FROM stores WHERE code = %s", (store_code,)).fetchone()[0]
+        conn.execute(
+            "INSERT INTO staff_accounts (store_id, role, name, email, password_hash, is_active) VALUES (%s, %s, %s, %s, %s, true) "
+            "ON CONFLICT (email) DO UPDATE SET store_id = EXCLUDED.store_id, role = EXCLUDED.role, name = EXCLUDED.name, "
+            "password_hash = EXCLUDED.password_hash, is_active = true",
+            (store_id, role, name, email, hasher.hash(password)),
+        )
 
 
 if __name__ == "__main__":

@@ -86,4 +86,17 @@
 
 ## 状態（2026-11-21）
 
-契約を書いた段階。実装の状態は [roadmap.md](roadmap.md)。
+**バックエンドは、この契約の全エンドポイントを実装した**（`backend/app/routes/`。画面は別。段階の状態は [roadmap.md](roadmap.md)）。契約を変えた点・足した点は次のとおり（フロントエンドの `contract.ts` に合わせる場合は、ここを見る）。
+
+**足した点（既存の項目は変えていない）**
+- `GET /api/stores` の `accepting_orders` / `closed_reason`、`GET /api/menu` の `available` / `unavailable_reason` は、**いつも返す**（`store_id` が無い `/api/menu` でも、季節・時間帯の判定は返す。在庫は `store_id` があるときだけ）。存在しない `store_id` は 404 `store_not_found`。
+- 取り下げた品（`is_active = false`）の `unavailable_reason` は `out_of_season`（理由は契約の 3 つだけ）。
+- 在庫の `receive` / `waste` / `adjust` と `GET /api/staff/stock`: 店つきのスタッフ（店長でも `store_id` を持つなら）は自店だけ。**店が決まっていない店長は `?store_id=` で店を選ぶ**（契約の本文には店の指定が無いため、クエリで足した）。選ばなければ 422 `store_required`。他店のスタッフが他店を指すと 404。
+- `GET /api/staff/orders` で、店つきのスタッフが他店の `store_id` を指すと 404。店長（店なし）は `store_id` 省略で全店。`status` に未知の値があれば 422 `invalid_status`。配達員（`courier`）は注文・在庫の API を使えない（403 `forbidden`。P2 で扱う）。
+- `DELETE /api/cart` は、品を空にして**店の選択は残す**。空にした `Cart` を 200 で返す。
+- `POST /api/orders` の同じキー・同じ本文の再送は、**保存した最初の応答ではなく、その注文の今の状態**を 200 で返す（支払い後に再送しても、古い `placed` を返さないため）。
+- スタッフの `cancel` は `paid` / `accepted` / `preparing` / `ready` から（`placed` は支払い前で、店は見ないので 409）。顧客の取消しの理由は固定の `customer_request`、期限切れは `payment_timeout`、拒否は `payment_declined`（`cancel_reason` と `events[].reason`）。
+- 追加のエラー `code`: `unauthorized`(401) / `forbidden`(403) / `store_not_found`・`variant_not_found`・`proposal_not_found`(404) / `too_many_lines`・`invalid_delta`・`reason_required`・`store_required`・`invalid_status`(422) / `idempotency_in_progress`・`insufficient_stock`(409) / `internal_error`(500)。本文はいつも固定の文。
+- 受付の状態は `placed` `paid` `accepted` `preparing` `ready` `completed` `cancelled` の 7 つ（宅配の状態は DB の CHECK にだけ入れてあり、API は P2 まで返さない）。
+
+**まだの点**: 顧客の本物のログイン（P6。いまは `X-Dev-User` だけ）、宅配（P2）、チャット（P3）、通知。冪等キーは、期限で消さない（保持は 24 時間以上の下限を満たす。消す処理は未実装）。

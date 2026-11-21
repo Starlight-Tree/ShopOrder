@@ -5,14 +5,14 @@ from psycopg import Connection
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
-from app.settings import database_url
+from app.settings import database_url, db_pool_max
 
 _pool: ConnectionPool | None = None
 
 
 def open_pool() -> None:
     global _pool
-    _pool = ConnectionPool(database_url(), min_size=1, max_size=5, kwargs={"row_factory": dict_row}, open=True)
+    _pool = ConnectionPool(database_url(), min_size=1, max_size=db_pool_max(), kwargs={"row_factory": dict_row}, open=True)
     _pool.wait(timeout=15)
 
 

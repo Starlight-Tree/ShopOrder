@@ -72,3 +72,21 @@ cart(下書き) ─確定ボタン→ placed ─支払い→ paid ─店が受�
 ## 通知（アプリ内。既定）
 
 イベント（受付・調理開始・準備完了・集荷・配達中・到着・完了・取消し）から `Notifier` が作る。既定はアプリ内の通知欄 + 画面の更新。Web Push・メールは後（差し替え口）。LINE は対象外。
+
+## 状態（2026-11-21）
+
+**P1 の店頭受け取りの流れ（確定・支払い・取消し・スタッフの遷移・期限切れの戻し・在庫の確保と消費・ポイント）をバックエンドに実装した**（`backend/app/orders.py` `inventory.py` `rules.py`。画面は別）。宅配（時間枠・区画・配達員・暗証コード・模擬の配達）・ロット（賞味期限・FEFO）・通知・発注点の通知は**未実装**。
+
+設計から変えた点・決めた細部:
+
+- **状態遷移の表は `orders.py` の `TRANSITIONS` の 1 か所**（from, to, 許す actor）。表に無い遷移は 409。顧客の取消しだけ、表が許さないときのコードが `not_cancellable`（他は `invalid_transition`）。スタッフの取消しは `paid` から `ready` まで（`placed` は支払い前で、店の対象外）。
+- **確保の期限は `stock_reservations.expires_at`**（`orders` には列を持たない）。支払い完了で NULL。期限切れ（`expire_stale`）は `placed` で確保が `held` のものを、`FOR UPDATE OF o SKIP LOCKED` で押さえて `cancelled`（reason `payment_timeout`、actor `system`）にする。呼ぶのは worker（30 秒ごと）と、注文の読み取り・確定・スタッフの一覧・在庫の一覧の前（遅延）。`pay` は自分で期限を見て、過ぎていれば取り消して 409 `reservation_expired`。
+- **冪等キーの再送は、最初の応答の写しではなく、その注文の今の状態を返す。** `idempotency_keys.response` には作成時の応答を残す（注文の特定に使う）。同じキー・違う本文は 422。確定が失敗（売り切れなど）すれば、キーも確保も提案の使用済みも、すべて戻る（同じキーでやり直せる）。同じキーの並行リクエストは、先の commit まで待つ。
+- **ロックの順:** 冪等キー → カート → 在庫の残高（品目 ID の昇順）→ 受け取り番号の採番（確定）。既存の注文を触る操作は、注文の行 → 確保 → 在庫の残高（品目 ID の昇順）。デッドロック（40P01）・直列化失敗（40001）は、確定だけ 3 回まで再試行する。
+- **営業時間の判定:** MO 不可店と臨時休業（`store_closures`）は常に見る。定休日・営業時間・ラストオーダー・販売時間帯は `ORDER_HOURS_CHECK=off`（開発の便宜。既定 on）のとき見ない。季節の期間は常に見る。ラストオーダーの時刻ちょうど・`sold_until` ちょうどは「出せる」、閉店の時刻ちょうどは「時間外」。判定の時刻は `LOCAL_UTC_OFFSET_HOURS`（既定 9）のローカル時刻で、`business_date` も同じ。`APP_ENV=production` では、`AUTH_MODE=dev` も `ORDER_HOURS_CHECK=off` も起動を拒否する。
+- **受け取り番号**は、店 × 営業日の連番（`store_order_counters` の `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`）。注文の確定の最後に採番して、ロックの時間を短くする。`public_id` は紛らわしい文字を除く 8 文字（`secrets`）。
+- **ポイント:** `completed` で `floor(合計 / 100)` 点を、`loyalty_ledger`（`earn` は 1 注文に 1 回の部分 UNIQUE）と `users.loyalty_points` へ、同じトランザクションで。0 点なら台帳に書かない。失効・無料券の引き換え（`expire` / `redeem`）は表だけで、処理は未実装。
+- **ログイン:** email ごとに 15 分で 5 回の失敗で 429（設計の既定。`limits.py`）。email を狙った締め出しができる（未対策。IP での制限は持たない）。
+- **冪等キーの期限切れの削除**と、台帳から残高を夜間に照合する処理（`inventory.reconcile` は関数だけ。worker からは呼んでいない）は未実装。
+
+**確認の範囲（2026-11-21、ソースの実行で確認）:** `backend/tests/` の 91 件（既存の 16 件を含む）が、使い捨ての Postgres 17.11 で全て通った（`TEST_DATABASE_URL=… pytest -q -rs`、skip 0。同じ全体を 3 回、同時実行のテストを 5 回繰り返して、いずれも通った）。`python -m app.worker` を実プロセスで動かし、期限切れの注文が取り消されて確保が戻り、SIGTERM で止まることを見た。`docker compose` の `worker` サービスは構文の検査（`docker compose config -q`）までで、イメージのビルド・起動は未確認。画面との結合・実際の uvicorn 越しの負荷（複数プロセスの API）は未確認。

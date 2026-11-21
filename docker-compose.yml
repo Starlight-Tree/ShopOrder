@@ -73,6 +73,14 @@ services:
       DELIVERY_PROVIDER: "${DELIVERY_PROVIDER:-mock}"
       NOTIFIER: "${NOTIFIER:-inapp}"
       CHAT_MODEL: "${CHAT_MODEL:-mock}"
+      # 開発の便宜（本番では使わない。APP_ENV=production のときは、AUTH_MODE=dev と ORDER_HOURS_CHECK=off の組み合わせで起動を拒否する）:
+      #   AUTH_MODE=dev … 顧客はヘッダー X-Dev-User で入る（Google ログインは P6）。
+      #   ORDER_HOURS_CHECK=off … 営業時間・定休日・ラストオーダー・販売時間帯を見ない（いつでも注文を試せる）。季節の期間と臨時休業は、off でも見る。
+      #   ローカル時刻は LOCAL_UTC_OFFSET_HOURS（既定 9）。営業時間の判定と営業日に使う。
+      APP_ENV: "development"
+      AUTH_MODE: "dev"
+      ORDER_HOURS_CHECK: "off"
+      LOCAL_UTC_OFFSET_HOURS: "${LOCAL_UTC_OFFSET_HOURS:-9}"
     volumes:
       - ./backend/app:/code/app
     ports:
@@ -89,6 +97,25 @@ services:
       timeout: 3s
       retries: 10
       start_period: 5s
+    restart: unless-stopped
+
+  # worker: 30 秒ごとに、支払い期限を過ぎた注文を取り消して在庫の確保を戻す（api と同じイメージ。python -m app.worker）。
+  # API も読み取り・確定の前に同じ処理を遅延で呼ぶので、worker が止まっても在庫は固まらない。ポートは公開しない。
+  worker:
+    build: ./backend
+    container_name: oasis-worker
+    command: ["python", "-m", "app.worker"]
+    environment:
+      DATABASE_URL: *database_url
+      PAYMENT_PROVIDER: "${PAYMENT_PROVIDER:-mock}"
+      LOCAL_UTC_OFFSET_HOURS: "${LOCAL_UTC_OFFSET_HOURS:-9}"
+    volumes:
+      - ./backend/app:/code/app
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend-net
     restart: unless-stopped
 
   # 画面の開発サーバー（frontend/ の next dev）。API はサーバー側（Next.js）から呼ぶので、ブラウザーは API を直接呼ばない。
