@@ -43,7 +43,7 @@ flowchart LR
 
 ブラウザーは API を直接呼ばず、画面のサーバー側が呼びます（[docs/api.md](docs/api.md)）。店のスタッフと店長は、別々にログインします。worker は 30 秒ごとに、支払い期限を過ぎた注文を取り消し、在庫を戻します。詳しくは [docs/architecture.md](docs/architecture.md)。
 
-## Quick start
+## クイックスタート
 
 初めての環境（空の DB）では、`migrate` と `seed` を 1 回ずつ実行します（`up` では起動しません）。
 
