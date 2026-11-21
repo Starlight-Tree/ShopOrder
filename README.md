@@ -9,7 +9,7 @@ FastAPI + Postgres 17 + Next.js。通貨は「ルミ」。世界観は [docs/wor
 - **画面で注文できる（店頭受け取り）。** 店を選び、メニューからカートに入れ、確認して確定し、模擬決済で支払う。注文の状況は 5 秒ごとに更新される（<http://localhost:3400>）。
 - **店のスタッフの画面**（<http://localhost:3400/staff/login>）。調理ボード（受付 → 調理開始 → 準備完了 → 渡した、取消し）と在庫（入荷・廃棄・棚卸し）。デモのスタッフは `staff-<店の code>@oasis-cafe.example`（例 `staff-residential-main@oasis-cafe.example`）、店長は `manager@oasis-cafe.example`、パスワードは `oasis-demo-pass`（ダミー）。
 - 在庫は台帳 + 残高で、確定のときに確保する（15 分で戻る。二重売りは起きない）。
-- 宅配・チャット・分析は、設計と実装の途中（[roadmap](docs/roadmap.md)）。API の約束は [docs/api.md](docs/api.md)。
+- 宅配・チャット・分析は、バックエンドまで入っている。画面は、店長の分析画面まで（宅配とチャットの画面はこれから。[roadmap](docs/roadmap.md)）。API の約束は [docs/api.md](docs/api.md)。
 
 ## Quick start
 
