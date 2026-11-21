@@ -11,6 +11,24 @@ FastAPI + Postgres 17 + Next.js。通貨は「ルミ」。世界観は [docs/wor
 - 在庫は台帳 + 残高で、確定のときに確保する（15 分で戻る。二重売りは起きない）。
 - 宅配・チャット・分析は、バックエンドまで入っている。画面は、店長の分析画面まで（宅配とチャットの画面はこれから。[roadmap](docs/roadmap.md)）。API の約束は [docs/api.md](docs/api.md)。
 
+## 画面
+
+数字・店・人はすべてダミー。支払いは模擬。
+
+**お客様（店頭受け取り）**
+
+| メニュー | カート |
+| --- | --- |
+| ![メニュー。店を選ぶと、ドリンク・フード・豆が並ぶ](docs/screenshots/01-menu.jpg) | ![カート。数量の変更と合計の確認](docs/screenshots/02-cart.jpg) |
+
+![注文の状況。支払い済みの段階。受け取り番号と進み具合が出る](docs/screenshots/03-order-status.jpg)
+
+**店のスタッフ**
+
+| 調理ボード | 在庫 |
+| --- | --- |
+| ![調理ボード。受付待ちの注文に「受ける」「取消し」が出る](docs/screenshots/04-staff-board.jpg) | ![在庫。実在庫・確保中・使える数・発注点](docs/screenshots/05-staff-stock.jpg) |
+
 ## Quick start
 
 前提: Docker。
