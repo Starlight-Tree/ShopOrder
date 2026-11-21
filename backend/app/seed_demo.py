@@ -2,6 +2,7 @@
 
     DEMO_DATA=allow python -m app.seed_demo            # 足りないものを入れる（何度流しても同じ。価格・レシピ・スタッフは書き直す。在庫の数は上書きしない）
     DEMO_DATA=allow python -m app.seed_demo --reset    # 店・メニュー・在庫・注文・スタッフを消して入れ直す（台帳の削除は、このときだけ許す）
+    DEMO_DATA=allow python -m app.seed_demo --reset --history  # 上に加えて、過去 90 日のダミーの注文・在庫の台帳と、分析の日次集計（app/seed_history.py。--reset と一緒のときだけ）
 
 店・営業時間・席は docs/world.md の「店舗（12）」（資料: cafe_store_guide.md）。メニューと価格は「新設」の参考値（docs/world.md の表）。
 **資料の事実（店・席・営業時間）と、新設の値（メニュー・価格）を、ここでも混ぜない。** 世界観の値を変えるときは、docs/world.md を先に直す。
@@ -11,11 +12,12 @@
 
 import os
 import sys
-from datetime import datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 import psycopg
 from argon2 import PasswordHasher
 
+from app import settings
 from app.settings import database_url, require_demo_data_allowed
 
 AREAS = [(1, "居住区", 1), (2, "発着場", 2), (3, "岩山", 3), (4, "遺跡", 4)]
@@ -133,10 +135,20 @@ _RESET_ORDER = (
 )
 
 
-def main(reset: bool = False, url: str | None = None) -> None:
+def main(reset: bool = False, url: str | None = None, history: bool = False, today: date | None = None, as_of: datetime | None = None) -> None:
+    if history and not reset:
+        raise SystemExit("--history は --reset と一緒に指定してください（履歴は、空にした DB へ入れます）。実行しませんでした。")
+    if history:  # 履歴（P4 の分析用ダミー）。--history のときだけ読み込む
+        from app import clock, seed_history
+
+        as_of = as_of or clock.utc_now()
+        today = today or (as_of + timedelta(hours=settings.local_utc_offset_hours())).date()
     with psycopg.connect(url or database_url()) as conn:
         if reset:
             conn.execute("SET LOCAL oasis.allow_ledger_reset = 'on'")  # このトランザクションの中だけ。追記のみの表の DELETE を通す
+            from app import seed_history as _seed_history
+
+            _seed_history.reset_analytics(conn)  # 分析の表（派生データ）は、元の表より先に空にする
             for table in _RESET_ORDER:
                 conn.execute(f"DELETE FROM {table}")  # noqa: S608（固定の表名。ダミーの入れ直しだけ）
         for code, name, sort in AREAS:
@@ -168,13 +180,20 @@ def main(reset: bool = False, url: str | None = None) -> None:
                     "ON CONFLICT (item_id, size, temperature) DO UPDATE SET price_lumi = EXCLUDED.price_lumi",
                     (item_id, size, temperature, price),
                 )
-        _seed_inventory(conn)
+        opening_at = None
+        if history:  # 初期在庫の日付を、履歴の期間の前日にする（台帳の残量が、期間の初めから合うように）
+            first = today - timedelta(days=seed_history.HISTORY_DAYS + 1)
+            opening_at = datetime(first.year, first.month, first.day, 12, 0, tzinfo=timezone.utc)
+        _seed_inventory(conn, opening_at=opening_at)
         _seed_staff(conn)
         _seed_delivery(conn)
+        history_counts = seed_history.seed(conn, today=today, as_of=as_of) if history else None
     print(f"店 {len(STORES)} 件・メニュー {len(MENU)} 品・在庫の品目 {len(STOCK_ITEMS)} 件・デモのスタッフ {len(STORES) + 1} 人・宅配の区画 {len(ZONES)} 件・配達員 {len(COURIERS)} 人を入れました")
+    if history_counts is not None:
+        print("ダミーの履歴（過去 90 日。すべてダミー）: " + ", ".join(f"{k} {v}" for k, v in history_counts.items() if k != "analytics"))
 
 
-def _seed_inventory(conn: psycopg.Connection) -> None:
+def _seed_inventory(conn: psycopg.Connection, opening_at: datetime | None = None) -> None:
     for code, name, kind, unit, reorder_point, safety_stock, _ in STOCK_ITEMS:
         conn.execute(
             "INSERT INTO stock_items (code, name, kind, unit, reorder_point, safety_stock) VALUES (%s, %s, %s, %s, %s, %s) "
@@ -191,7 +210,7 @@ def _seed_inventory(conn: psycopg.Connection) -> None:
         for stock_code, qty in lines:
             conn.execute("INSERT INTO recipe_lines (variant_id, stock_item_id, qty) VALUES (%s, %s, %s)", (variant_id, stock_ids[stock_code], qty))
     # 残高: 無い店・品目だけ入れる（再実行しても、今の在庫を上書きしない）。台帳には、初期在庫の receive を同時に追記する（台帳と残高を合わせる）
-    now = datetime.now(timezone.utc)
+    now = opening_at or datetime.now(timezone.utc)
     stores = conn.execute("SELECT id, code, seats FROM stores ORDER BY id").fetchall()
     for store_id, store_code, seats in stores:
         for code, _name, _kind, _unit, _rp, _ss, base in STOCK_ITEMS:
@@ -309,4 +328,4 @@ def _store_row(conn: psycopg.Connection, store_id: int) -> dict:
 
 if __name__ == "__main__":
     require_demo_data_allowed()
-    main(reset="--reset" in sys.argv[1:])
+    main(reset="--reset" in sys.argv[1:], history="--history" in sys.argv[1:])

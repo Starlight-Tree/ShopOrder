@@ -133,3 +133,23 @@ def delivery_mock_step_seconds() -> int:
 def assignment_policy() -> str:
     """配達員の提案の方針（delivery_rules.PROPOSERS の名前）。既定は nearest。"""
     return os.environ.get("ASSIGNMENT_POLICY", "nearest")
+
+
+# ---- 分析（P4）。docs/metrics.md、docs/analytics.md「顧客データの分析」 ----
+
+# 開発用の固定の鍵（秘密ではない）。seed_demo --history が、ANALYTICS_PSEUDONYM_KEY の無い開発環境で集計を作るときだけ使う。本番相当では使わない。
+DEV_PSEUDONYM_KEY = "dev-only-analytics-pseudonym-key-not-secret"
+PSEUDONYM_KEY_MIN_LENGTH = 16
+
+
+def analytics_pseudonym_key(*, allow_dev_default: bool = False) -> bytes:
+    """顧客の仮名 ID（HMAC）の鍵。環境変数 ANALYTICS_PSEUDONYM_KEY。値は、表示・ログ・Git に出さない。
+    無いとき: allow_dev_default（seed のときだけ True）かつ APP_ENV が production でなければ、開発用の固定値。それ以外は RuntimeError。"""
+    value = os.environ.get("ANALYTICS_PSEUDONYM_KEY", "")
+    if value:
+        if len(value) < PSEUDONYM_KEY_MIN_LENGTH:
+            raise RuntimeError(f"ANALYTICS_PSEUDONYM_KEY は {PSEUDONYM_KEY_MIN_LENGTH} 文字以上にしてください")
+        return value.encode("utf-8")
+    if allow_dev_default and app_env() != "production":
+        return DEV_PSEUDONYM_KEY.encode("utf-8")
+    raise RuntimeError("ANALYTICS_PSEUDONYM_KEY が未設定です（開発用の固定値は、seed のときだけ使えます。本番相当では必須）")

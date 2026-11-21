@@ -14,6 +14,7 @@ from app.routes import cart as cart_routes
 from app.routes import delivery as delivery_routes
 from app.routes import orders as order_routes
 from app.routes import staff as staff_routes
+from app.routes import analytics as analytics_routes
 from app.schemas import MenuItem, Store
 from app.settings import cors_origins
 
@@ -35,6 +36,7 @@ app.add_middleware(CORSMiddleware, allow_origins=cors_origins(), allow_methods=[
 app.include_router(cart_routes.router)
 app.include_router(order_routes.router)
 app.include_router(staff_routes.router)
+app.include_router(analytics_routes.router)
 for _router in delivery_routes.routers:  # 宅配（P2）: 住所・区画・枠・配車・配達員
     app.include_router(_router)
 
