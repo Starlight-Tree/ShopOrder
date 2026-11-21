@@ -17,7 +17,9 @@ def get_cart(customer: CustomerDep) -> dict:
 @router.put("", response_model=Cart)
 def put_cart(body: CartUpdate, customer: CustomerDep) -> dict:
     with connection() as conn:
-        return cart.set_store(conn, customer.id, body.store_id, body.fulfillment, clock.utc_now(), clock.local_now())
+        return cart.set_store(
+            conn, customer.id, body.store_id, body.fulfillment, clock.utc_now(), clock.local_now(), address_id=body.address_id, slot_id=body.slot_id
+        )
 
 
 @router.put("/items/{variant_id}", response_model=Cart)

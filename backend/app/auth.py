@@ -191,3 +191,23 @@ def logout(token: str) -> None:
 
 def bearer_token(authorization: str | None) -> str | None:
     return _bearer(authorization)
+
+
+# ---- 配達員・店長（P2。docs/api.md「宅配（P2）」） ----
+
+def staff_courier(staff: Annotated[StaffUser, Depends(current_staff)]) -> StaffUser:
+    """配達員（role = courier）だけ。ほかは 403。"""
+    if staff.role != "courier":
+        raise ApiError(403, "forbidden")
+    return staff
+
+
+def staff_manager(staff: Annotated[StaffUser, Depends(current_staff)]) -> StaffUser:
+    """店長（role = manager）だけ。ほかは 403。"""
+    if staff.role != "manager":
+        raise ApiError(403, "forbidden")
+    return staff
+
+
+CourierDep = Annotated[StaffUser, Depends(staff_courier)]
+ManagerDep = Annotated[StaffUser, Depends(staff_manager)]

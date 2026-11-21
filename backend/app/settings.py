@@ -93,3 +93,43 @@ def require_demo_data_allowed() -> None:
         raise SystemExit("ダミーデータの投入は、DEMO_DATA=allow を渡した開発・テストの環境だけです。実行しませんでした。")
     if os.environ.get("APP_ENV", "").strip().lower() == "production":
         raise SystemExit("APP_ENV=production では、ダミーデータの投入（特に --reset）を実行しません。")
+
+
+# ---- 宅配（P2。docs/api.md「宅配（P2）」） ----
+
+_DEV_PIN_SECRET = "dev-only-delivery-pin-secret"  # 秘密ではない（開発の便宜。本番では使わせない）
+
+
+def delivery_pin_secret() -> str:
+    """暗証コードの HMAC の鍵（DELIVERY_PIN_SECRET）。本番相当（APP_ENV=production）で未設定なら、別の値へ黙って落とさず失敗する。開発・テストは固定の値。"""
+    value = os.environ.get("DELIVERY_PIN_SECRET", "")
+    if value:
+        return value
+    if app_env() == "production":
+        raise RuntimeError("APP_ENV=production では DELIVERY_PIN_SECRET が必要です")
+    return _DEV_PIN_SECRET
+
+
+def delivery_mock_autopilot() -> bool:
+    """worker が、模擬の配達（DELIVERY_PROVIDER=mock）を時間経過で進めるか。既定は off（デモで人が動かす）。on / off 以外は失敗する。"""
+    value = os.environ.get("DELIVERY_MOCK_AUTOPILOT", "off")
+    if value not in ("on", "off"):
+        raise RuntimeError("DELIVERY_MOCK_AUTOPILOT は on / off のどちらかにしてください")
+    return value == "on"
+
+
+def delivery_mock_step_seconds() -> int:
+    """模擬の配達が、次の状態へ進むまでの秒数（既定 30）。"""
+    raw = os.environ.get("DELIVERY_MOCK_STEP_SECONDS", "30")
+    try:
+        seconds = int(raw)
+    except ValueError as exc:
+        raise RuntimeError("DELIVERY_MOCK_STEP_SECONDS は整数にしてください") from exc
+    if not 0 <= seconds <= 3600:
+        raise RuntimeError("DELIVERY_MOCK_STEP_SECONDS は 0〜3600 の整数にしてください")
+    return seconds
+
+
+def assignment_policy() -> str:
+    """配達員の提案の方針（delivery_rules.PROPOSERS の名前）。既定は nearest。"""
+    return os.environ.get("ASSIGNMENT_POLICY", "nearest")

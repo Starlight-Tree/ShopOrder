@@ -125,10 +125,11 @@ def _staff_password() -> str:
 
 # リセットで消す順（外部キーの子から親へ）。台帳（stock_movements・order_events）は、SET LOCAL oasis.allow_ledger_reset = 'on' のときだけ消せる
 _RESET_ORDER = (
-    "loyalty_ledger", "stock_reservation_lines", "stock_reservations", "payments", "idempotency_keys", "order_events", "order_items", "orders",
-    "store_order_counters", "checkout_proposals", "cart_items", "carts", "users", "staff_sessions", "staff_login_attempts", "staff_accounts",
+    "loyalty_ledger", "stock_reservation_lines", "stock_reservations", "payments", "idempotency_keys", "order_events", "order_items", "deliveries", "orders",
+    "store_order_counters", "checkout_proposals", "cart_items", "carts", "addresses", "delivery_slots", "users", "staff_sessions", "staff_login_attempts",
+    "couriers", "staff_accounts",
     "stock_movements", "stock_balances", "recipe_lines", "stock_items",
-    "menu_variants", "menu_items", "store_closures", "stores", "areas",
+    "menu_variants", "menu_items", "store_closures", "store_zones", "zone_travel_minutes", "delivery_zones", "stores", "areas",
 )
 
 
@@ -169,7 +170,8 @@ def main(reset: bool = False, url: str | None = None) -> None:
                 )
         _seed_inventory(conn)
         _seed_staff(conn)
-    print(f"店 {len(STORES)} 件・メニュー {len(MENU)} 品・在庫の品目 {len(STOCK_ITEMS)} 件・デモのスタッフ {len(STORES) + 1} 人を入れました")
+        _seed_delivery(conn)
+    print(f"店 {len(STORES)} 件・メニュー {len(MENU)} 品・在庫の品目 {len(STOCK_ITEMS)} 件・デモのスタッフ {len(STORES) + 1} 人・宅配の区画 {len(ZONES)} 件・配達員 {len(COURIERS)} 人を入れました")
 
 
 def _seed_inventory(conn: psycopg.Connection) -> None:
@@ -221,6 +223,88 @@ def _seed_staff(conn: psycopg.Connection) -> None:
             "password_hash = EXCLUDED.password_hash, is_active = true",
             (store_id, role, name, email, hasher.hash(password)),
         )
+
+
+# ---- 宅配（P2）。区画・送料・所要・区画間の分は docs/world.md「宅配」（新設）の値。最低注文額は、資料の範囲（600〜900）の両端が居住区・遺跡で、
+# 発着場 700・岩山 800 は、その間を等間隔に置いた新設。配達員の名前・店の割り当てはダミー（人物設定は新設）。 ----
+# (エリアの code, 区画の名前, 送料, 無料になる小計, 最低注文額, 基準の所要分)
+ZONES = [(1, "居住区", 150, 2000, 600, 25), (2, "発着場", 200, 2000, 700, 30), (3, "岩山", 300, 2000, 800, 40), (4, "遺跡", 400, 2000, 900, 50)]
+# 区画間の所要分（往復で同じ値を入れる）
+ZONE_TRAVEL = {(1, 2): 10, (2, 3): 15, (3, 4): 15, (1, 3): 20, (2, 4): 25, (1, 4): 30}
+# 配達員 8 人（店の code, 名前）。宅配をする店 = 配達員がいる 6 店（world.md の「店ごとに数人」「全 12 店」より少ない。依頼の「6〜8 人」に合わせた）
+COURIERS = [
+    ("residential-main", "ラシード"), ("residential-main", "ナディア"), ("residential-dome", "カミル"),
+    ("terminal-central", "ヤスミン"), ("terminal-central", "ハリド"), ("terminal-west", "サーラ"),
+    ("rock-plaza", "イドリス"), ("ruins-terrace", "ライラ"),
+]
+
+
+def courier_email(store_code: str, n: int) -> str:
+    return f"courier-{store_code}-{n}@oasis-cafe.example"
+
+
+def delivery_neighbor(area: int) -> int:
+    """隣接 1 エリア（居住区—発着場—岩山—遺跡の順の「次」。最後の遺跡だけ手前の岩山）。新設。"""
+    return area + 1 if area < len(ZONES) else area - 1
+
+
+def _seed_delivery(conn: psycopg.Connection) -> None:
+    """区画・区画間の分・宅配をする店・配達員（courier ロールのデモのアカウント）・今日から 7 日先までの時間枠。何度流しても同じ（今の is_suspended・勤務・枠の予約数は上書きしない）。"""
+    from psycopg.rows import dict_row, tuple_row
+
+    from app import clock, delivery
+
+    for area, name, fee, free_over, min_order, base in ZONES:
+        conn.execute(
+            "INSERT INTO delivery_zones (area_code, name, fee_lumi, free_over_lumi, min_order_lumi, base_minutes) VALUES (%s, %s, %s, %s, %s, %s) "
+            "ON CONFLICT (area_code) DO UPDATE SET name = EXCLUDED.name, fee_lumi = EXCLUDED.fee_lumi, free_over_lumi = EXCLUDED.free_over_lumi, "
+            "min_order_lumi = EXCLUDED.min_order_lumi, base_minutes = EXCLUDED.base_minutes",
+            (area, name, fee, free_over, min_order, base),
+        )
+    zone_id = {r[0]: r[1] for r in conn.execute("SELECT area_code, id FROM delivery_zones")}
+    for (a, b), minutes in ZONE_TRAVEL.items():
+        for src, dst in ((a, b), (b, a)):
+            conn.execute(
+                "INSERT INTO zone_travel_minutes (from_zone_id, to_zone_id, minutes) VALUES (%s, %s, %s) "
+                "ON CONFLICT (from_zone_id, to_zone_id) DO UPDATE SET minutes = EXCLUDED.minutes",
+                (zone_id[src], zone_id[dst], minutes),
+            )
+    # 宅配をする店 = 配達員がいる店。届ける区画は、店のエリア + 隣接 1 エリア
+    stores_by_code = {r[0]: (r[1], r[2]) for r in conn.execute("SELECT code, id, area_code FROM stores")}
+    for code in dict.fromkeys(c for c, _ in COURIERS):
+        store_id, area = stores_by_code[code]
+        for zone_area in (area, delivery_neighbor(area)):
+            conn.execute("INSERT INTO store_zones (store_id, zone_id) VALUES (%s, %s) ON CONFLICT DO NOTHING", (store_id, zone_id[zone_area]))
+    hasher = PasswordHasher()
+    password = _staff_password()
+    counters: dict[str, int] = {}
+    for store_code, name in COURIERS:
+        counters[store_code] = counters.get(store_code, 0) + 1
+        store_id = stores_by_code[store_code][0]
+        staff_id = conn.execute(
+            "INSERT INTO staff_accounts (store_id, role, name, email, password_hash, is_active) VALUES (%s, 'courier', %s, %s, %s, true) "
+            "ON CONFLICT (email) DO UPDATE SET store_id = EXCLUDED.store_id, role = EXCLUDED.role, name = EXCLUDED.name, "
+            "password_hash = EXCLUDED.password_hash, is_active = true RETURNING id",
+            (store_id, name, courier_email(store_code, counters[store_code]), hasher.hash(password)),
+        ).fetchone()[0]
+        conn.execute(
+            "INSERT INTO couriers (staff_id, store_id) VALUES (%s, %s) ON CONFLICT (staff_id) DO UPDATE SET store_id = EXCLUDED.store_id", (staff_id, store_id)
+        )
+    # 枠: delivery.ensure_slots は dict の行を読むので、この間だけ行の形を変える
+    today = clock.local_now().date()
+    conn.row_factory = dict_row
+    try:
+        for code in dict.fromkeys(c for c, _ in COURIERS):
+            store = _store_row(conn, stores_by_code[code][0])
+            delivery.ensure_window(conn, store, today)
+    finally:
+        conn.row_factory = tuple_row
+
+
+def _store_row(conn: psycopg.Connection, store_id: int) -> dict:
+    return conn.execute(
+        "SELECT id, open_time, close_time, closed_weekday, last_order_minutes FROM stores WHERE id = %s", (store_id,)
+    ).fetchone()
 
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ from psycopg import Connection
 from psycopg.types.json import Jsonb
 
 from app import cart as cart_service
-from app import clock, inventory, limits, payment
+from app import clock, delivery, inventory, limits, payment
 from app.db import connection
 from app.errors import ApiError
 
@@ -32,7 +32,7 @@ log = logging.getLogger("oasis.orders")
 T = TypeVar("T")
 
 # ---- 状態遷移の表（1 か所）。(from, to) → 許す actor_type。表に無い遷移は 409。 ----
-# P1（店頭受け取り）の範囲。宅配の状態（assigned 以降）は P2 で足す（orders.status の CHECK には入れてある）。
+# P1（店頭受け取り）の遷移に、P2（宅配）の遷移を足してある（orders.status の CHECK は 0004 から宅配の状態を含む）。
 TRANSITIONS: dict[tuple[str, str], frozenset[str]] = {
     ("placed", "paid"): frozenset({"system"}),  # 支払いの提供者（模擬は即時）
     ("placed", "cancelled"): frozenset({"customer", "system"}),  # 顧客の取消し・支払い期限切れ・拒否
@@ -44,6 +44,16 @@ TRANSITIONS: dict[tuple[str, str], frozenset[str]] = {
     ("preparing", "cancelled"): frozenset({"staff"}),
     ("ready", "completed"): frozenset({"staff"}),
     ("ready", "cancelled"): frozenset({"staff"}),
+    # ---- 宅配（P2）。配達員の操作も actor_type は staff（order_events の CHECK。店長・配達員を含む）。模擬の進行・暗証コードの凍結は system ----
+    ("ready", "assigned"): frozenset({"staff", "system"}),  # 店が割り当てる（模擬は提案の採用）
+    ("assigned", "picked_up"): frozenset({"staff", "system"}),  # 配達員の集荷
+    ("picked_up", "delivering"): frozenset({"staff", "system"}),  # 配達員の出発
+    ("delivering", "delivered"): frozenset({"staff", "system"}),  # 暗証コードが合う（模擬は暗証コードなし）
+    ("delivered", "completed"): frozenset({"system"}),  # delivered と同じトランザクション（ポイント付与）
+    ("delivering", "delivery_failed"): frozenset({"staff", "system"}),  # 不在（配達員）・暗証コードの凍結（system）
+    ("delivery_failed", "ready"): frozenset({"staff"}),  # 再配達（新しい枠を取る）
+    ("delivery_failed", "cancelled"): frozenset({"staff"}),
+    ("assigned", "cancelled"): frozenset({"staff"}),  # 集荷の前なら、店が取り消せる
 }
 
 # スタッフの操作 → (今の状態, 次の状態)。cancel は「どの状態からでも cancelled へ」（表が許す状態だけ通る）。
@@ -68,8 +78,17 @@ def check_transition(from_status: str, to_status: str, actor_type: str, *, code:
         raise ApiError(409, code)
 
 
-def staff_allowed_actions(status: str) -> list[str]:
-    actions = [name for name, (frm, to) in STAFF_ACTIONS.items() if frm == status and "staff" in TRANSITIONS[(frm, to)]]
+def staff_allowed_actions(status: str, fulfillment: str = "pickup") -> list[str]:
+    """店のスタッフが、その注文にできる操作。宅配は complete が無く（配達員が完了する）、assign / redeliver が足される。"""
+    actions = [
+        name for name, (frm, to) in STAFF_ACTIONS.items()
+        if frm == status and "staff" in TRANSITIONS[(frm, to)] and not (fulfillment == "delivery" and name == "complete")
+    ]
+    if fulfillment == "delivery":
+        if status in ("ready", "assigned"):
+            actions.append("assign")
+        if status == "delivery_failed":
+            actions.append("redeliver")
     if "staff" in TRANSITIONS.get((status, "cancelled"), frozenset()):
         actions.append("cancel")
     return actions
@@ -107,6 +126,7 @@ def _assemble(conn: Connection, rows: list[dict], now: datetime, *, staff: bool)
             "SELECT order_id, to_status, at, actor_type, reason FROM order_events WHERE order_id = ANY(%s) ORDER BY id", (ids,)
         ).fetchall():
             events[ev["order_id"]].append({"to_status": ev["to_status"], "at": clock.iso(ev["at"]), "actor_type": ev["actor_type"], "reason": ev["reason"]})
+    deliveries = delivery.views_for_orders(conn, [r["id"] for r in rows if r["fulfillment"] == "delivery"], staff=staff, now=now)
     result = []
     for r in rows:
         expires = r["reservation_expires_at"] if r["status"] == "placed" else None
@@ -115,10 +135,10 @@ def _assemble(conn: Connection, rows: list[dict], now: datetime, *, staff: bool)
             "store": {"id": r["store_id"], "name": r["store_name"]}, "items": items[r["id"]],
             "subtotal_lumi": r["subtotal_lumi"], "delivery_fee_lumi": r["delivery_fee_lumi"], "total_lumi": r["total_lumi"],
             "placed_at": clock.iso(r["placed_at"]), "reservation_expires_at": clock.iso(expires) if expires else None,
-            "events": events[r["id"]], "cancel_reason": r["cancel_reason"],
+            "events": events[r["id"]], "cancel_reason": r["cancel_reason"], "delivery": deliveries.get(r["id"]),
         }
         if staff:
-            actions = staff_allowed_actions(r["status"])
+            actions = staff_allowed_actions(r["status"], r["fulfillment"])
             order.update({"can_pay": False, "can_cancel": "cancel" in actions, "allowed_actions": actions})
         else:
             order["payment"] = {"provider": r["payment_provider"], "status": r["payment_status"]} if r["payment_provider"] else None
@@ -144,8 +164,8 @@ def list_for_customer(customer_id: int) -> list[dict]:
     with connection() as conn:
         rows = _fetch(conn, "o.user_id = %s", (customer_id,), order_by="o.placed_at DESC, o.id DESC", limit=limits.CUSTOMER_ORDER_LIST_LIMIT)
     return [
-        {"public_id": r["public_id"], "pickup_no": r["pickup_no"], "status": r["status"], "store": {"id": r["store_id"], "name": r["store_name"]},
-         "total_lumi": r["total_lumi"], "placed_at": clock.iso(r["placed_at"])}
+        {"public_id": r["public_id"], "pickup_no": r["pickup_no"], "status": r["status"], "fulfillment": r["fulfillment"],
+         "store": {"id": r["store_id"], "name": r["store_name"]}, "total_lumi": r["total_lumi"], "placed_at": clock.iso(r["placed_at"])}
         for r in rows
     ]
 
@@ -176,7 +196,7 @@ def _event(conn: Connection, order_id: int, from_status: str | None, to_status: 
 
 def _lock(conn: Connection, public_id: str, *, user_id: int | None = None, store_id: int | None = None) -> dict:
     """注文の行を FOR UPDATE で押さえる。他人の注文・他店の注文は 404（存在を教えない）。"""
-    sql = "SELECT id, public_id, user_id, store_id, status, total_lumi, cancel_reason FROM orders WHERE public_id = %s"
+    sql = "SELECT id, public_id, user_id, store_id, status, fulfillment, total_lumi, cancel_reason FROM orders WHERE public_id = %s"
     params: list = [public_id]
     if user_id is not None:
         sql += " AND user_id = %s"
@@ -213,6 +233,8 @@ def _cancel(conn: Connection, order: dict, *, actor_type: str, actor_id: str | N
             conn.execute("UPDATE payments SET status = 'refunded', updated_at = %s WHERE id = %s", (now, pay["id"]))
         elif pay["status"] == "pending":
             conn.execute("UPDATE payments SET status = 'failed', updated_at = %s WHERE id = %s", (now, pay["id"]))
+    if order["fulfillment"] == "delivery":
+        delivery.cancel_delivery(conn, order["id"])  # 枠を戻して配達を cancelled に（在庫の後。ロックの順は delivery.py の冒頭）
     conn.execute("UPDATE orders SET status = 'cancelled', cancelled_at = %s, cancel_reason = %s WHERE id = %s", (now, reason, order["id"]))
     _event(conn, order["id"], order["status"], "cancelled", actor_type, actor_id, reason, now)
 
@@ -224,7 +246,7 @@ def _expire_one(public_id: str) -> int:
     now = clock.utc_now()
     with connection() as conn:
         order = conn.execute(
-            "SELECT o.id, o.public_id, o.user_id, o.store_id, o.status, o.total_lumi FROM orders o JOIN stock_reservations r ON r.order_id = o.id "
+            "SELECT o.id, o.public_id, o.user_id, o.store_id, o.status, o.fulfillment, o.total_lumi FROM orders o JOIN stock_reservations r ON r.order_id = o.id "
             "WHERE o.public_id = %s AND o.status = 'placed' AND r.status = 'held' AND r.expires_at IS NOT NULL AND r.expires_at <= %s "
             "FOR UPDATE OF o SKIP LOCKED",
             (public_id, now),
@@ -336,6 +358,9 @@ def _place_order_once(customer_id: int, key: str, request_hash: str, proposal_id
         total = cart_service.validate_checkout(conn, cart, lines, local, check_stock=False)
         if total != proposal["total_lumi"]:
             raise ApiError(409, "proposal_stale")
+        subtotal = sum(line.line_total_lumi for line in lines)
+        quote = delivery.quote_for_cart(conn, cart, subtotal, now) if cart["fulfillment"] == "delivery" else None  # 宅配（P2）の住所・区画・枠。上の検査と同じ
+        delivery_fee = total - subtotal
 
         # 4. 在庫の確保（品目 ID の昇順に条件付き UPDATE。0 行なら売り切れ）。台帳に reserve を追記
         public_id = new_public_id()
@@ -348,7 +373,9 @@ def _place_order_once(customer_id: int, key: str, request_hash: str, proposal_id
         except inventory.InsufficientStock as short:
             raise ApiError(409, "sold_out", item_name=cart_service.first_line_using(lines, recipe_map, {short.item_id})) from None
 
-        # 5. 宅配の枠（P2）。店頭受け取りは無し
+        # 5. 宅配の枠（P2）。条件付き UPDATE（booked < capacity）で確保する。取れなければ 409 で、在庫も冪等キーも全部戻る。店頭受け取りは無し
+        if quote is not None:
+            delivery.book_slot(conn, quote.slot["id"], cart["store_id"])
         # 6. 注文・行（スナップショット）・支払い・確保・履歴
         business_date = local.date()
         pickup_no = conn.execute(
@@ -358,9 +385,11 @@ def _place_order_once(customer_id: int, key: str, request_hash: str, proposal_id
         ).fetchone()["last_no"]
         order_id = conn.execute(
             "INSERT INTO orders (public_id, user_id, store_id, status, fulfillment, pickup_no, business_date, subtotal_lumi, delivery_fee_lumi, total_lumi, "
-            "source, idempotency_key, placed_at) VALUES (%s, %s, %s, 'placed', 'pickup', %s, %s, %s, 0, %s, 'screen', %s, %s) RETURNING id",
-            (public_id, customer_id, cart["store_id"], pickup_no, business_date, total, total, key, now),
+            "source, idempotency_key, placed_at) VALUES (%s, %s, %s, 'placed', %s, %s, %s, %s, %s, %s, 'screen', %s, %s) RETURNING id",
+            (public_id, customer_id, cart["store_id"], cart["fulfillment"], pickup_no, business_date, subtotal, delivery_fee, total, key, now),
         ).fetchone()["id"]
+        if quote is not None:
+            delivery.create_delivery(conn, order_id, cart["store_id"], quote, now)
         for line in lines:
             conn.execute(
                 "INSERT INTO order_items (order_id, variant_id, name, size, temperature, unit_price_lumi, qty, line_total_lumi) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
@@ -447,7 +476,7 @@ def staff_transition(staff_id: int, staff_store_id: int | None, public_id: str, 
             _cancel(conn, order, actor_type="staff", actor_id=actor_id, reason=reason, reservation_final="released", now=now)
         else:
             frm, to = STAFF_ACTIONS[action]
-            if order["status"] != frm:
+            if order["status"] != frm or (action == "complete" and order["fulfillment"] == "delivery"):  # 宅配は配達員が完了する
                 raise ApiError(409, "invalid_transition")
             check_transition(frm, to, "staff")
             if action == "accept":

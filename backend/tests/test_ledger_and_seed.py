@@ -175,7 +175,7 @@ def test_seed_rerun_keeps_stock_and_has_a_recipe_for_every_variant(fresh_db):
     with psycopg.connect(fresh_db, autocommit=True) as conn:
         assert _first(conn, "SELECT on_hand FROM stock_balances WHERE store_id = (SELECT id FROM stores WHERE code = 'rock-plaza') AND item_id = (SELECT id FROM stock_items WHERE code = 'milk')") == 777
         assert _first(conn, "SELECT count(*) FROM stock_movements") == movements  # 台帳も増えない
-        assert _first(conn, "SELECT count(*) FROM staff_accounts") == 13
+        assert _first(conn, "SELECT count(*) FROM staff_accounts") == 13 + len(seed_demo.COURIERS)  # 店 12 + 店長 1 + 配達員（P2）
 
 
 def test_seed_reset_clears_orders_and_the_ledger_and_rebuilds(fresh_db):

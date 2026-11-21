@@ -19,6 +19,11 @@ def _all_versions():
     return [v for v, _, _ in migrate.migration_files()]
 
 
+def _next_number(skip: int = 0) -> str:
+    """今あるマイグレーションの、次の番号（skip = 飛ばす数）。マイグレーションが増えても、番号の決め打ちで壊れないように、数えて決める。"""
+    return f"{len(_all_versions()) + 1 + skip:04d}"
+
+
 def _tables(url):
     with psycopg.connect(url) as conn:
         return {r[0] for r in conn.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")}
@@ -64,13 +69,13 @@ def test_failed_migration_rolls_back_and_is_not_recorded(tmp_path, monkeypatch):
     real_versions = _all_versions()  # monkeypatch の前の、本物のマイグレーション
     work = tmp_path / "migrations"
     shutil.copytree(migrate.MIGRATIONS_DIR, work)
-    (work / "0005_broken.sql").write_text("CREATE TABLE half_done (id int);\nSELECT 1/0;\n", encoding="utf-8")
+    (work / f"{_next_number()}_broken.sql").write_text("CREATE TABLE half_done (id int);\nSELECT 1/0;\n", encoding="utf-8")
     monkeypatch.setattr(migrate, "MIGRATIONS_DIR", work)
     with pytest.raises(psycopg.errors.DivisionByZero):
         _run(url)
     assert "half_done" not in _tables(url)  # 途中までの変更は残らない
     with psycopg.connect(url) as conn:
-        # 既存の 0001〜0004 は、それぞれ 1 ファイル 1 トランザクションで記録済み。壊れた 0005 だけが記録されない
+        # 既存のマイグレーションは、それぞれ 1 ファイル 1 トランザクションで記録済み。壊れた次の番号のファイルだけが記録されない
         assert [r[0] for r in conn.execute("SELECT version FROM schema_migrations ORDER BY 1")] == real_versions
 
 
@@ -80,7 +85,7 @@ def test_drop_and_truncate_are_refused(tmp_path, monkeypatch):
     url = new_database("oasis_migrate_e")
     work = tmp_path / "migrations"
     shutil.copytree(migrate.MIGRATIONS_DIR, work)
-    (work / "0005_bad.sql").write_text("DROP TABLE stores;\n", encoding="utf-8")
+    (work / f"{_next_number()}_bad.sql").write_text("DROP TABLE stores;\n", encoding="utf-8")
     monkeypatch.setattr(migrate, "MIGRATIONS_DIR", work)
     code, lines = _run(url)
     assert code == 1 and any("DROP / TRUNCATE" in line for line in lines)
@@ -93,10 +98,11 @@ def test_numbering_rules(tmp_path, monkeypatch):
     work = tmp_path / "migrations"
     shutil.copytree(migrate.MIGRATIONS_DIR, work)
     monkeypatch.setattr(migrate, "MIGRATIONS_DIR", work)
-    (work / "0006_gap.sql").write_text("SELECT 1;\n", encoding="utf-8")
+    gap = work / f"{_next_number(skip=1)}_gap.sql"  # 1 つ飛ばした番号
+    gap.write_text("SELECT 1;\n", encoding="utf-8")
     with pytest.raises(migrate.MigrationError):
         migrate.migration_files()
-    (work / "0006_gap.sql").unlink()
+    gap.unlink()
     (work / "bad name.sql").write_text("SELECT 1;\n", encoding="utf-8")
     with pytest.raises(migrate.MigrationError):
         migrate.migration_files()

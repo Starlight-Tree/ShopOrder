@@ -55,8 +55,9 @@ def test_cart_input_limits_and_errors(client, shop):
     assert r.status_code == 404 and code_of(r) == "variant_not_found"
     r = client.put("/api/cart", json={"store_id": 999999, "fulfillment": "pickup"}, headers=h)
     assert r.status_code == 404 and code_of(r) == "store_not_found"
+    # 宅配は P2 で使えるようになった（P1 では 422 delivery_unsupported）。住所・枠が無ければ、確認・確定の前に issues で知らせる
     r = client.put("/api/cart", json={"store_id": shop.store_id("residential-main"), "fulfillment": "delivery"}, headers=h)
-    assert r.status_code == 422 and code_of(r) == "delivery_unsupported"
+    assert r.status_code == 200 and r.json()["fulfillment"] == "delivery" and r.json()["delivery"]["issues"][:2] == ["address_required", "slot_required"]
     assert client.put("/api/cart", json={"store_id": None, "fulfillment": "pickup", "extra": 1}, headers=h).status_code == 422
 
 

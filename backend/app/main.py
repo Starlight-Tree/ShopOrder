@@ -6,11 +6,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app import auth, clock, inventory, rules
+from app import auth, clock, delivery, inventory, rules
 from app import stores as store_queries
 from app.db import close_pool, connection, open_pool
 from app.errors import MESSAGES, ApiError
 from app.routes import cart as cart_routes
+from app.routes import delivery as delivery_routes
 from app.routes import orders as order_routes
 from app.routes import staff as staff_routes
 from app.schemas import MenuItem, Store
@@ -22,6 +23,7 @@ log = logging.getLogger("oasis.api")
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     auth.check_startup()  # 本番相当の環境で、開発専用の設定が残っていたら、ここで起動を拒否する
+    delivery.check_startup()  # 宅配の設定（暗証コードの鍵・提供者・方針）。本番相当で鍵が無ければ拒否する
     open_pool()
     yield
     close_pool()
@@ -33,6 +35,8 @@ app.add_middleware(CORSMiddleware, allow_origins=cors_origins(), allow_methods=[
 app.include_router(cart_routes.router)
 app.include_router(order_routes.router)
 app.include_router(staff_routes.router)
+for _router in delivery_routes.routers:  # 宅配（P2）: 住所・区画・枠・配車・配達員
+    app.include_router(_router)
 
 
 @app.exception_handler(RequestValidationError)

@@ -1,4 +1,4 @@
-"""worker: 30 秒ごとに、支払い期限を過ぎた注文を取り消して在庫の確保を戻す（orders.expire_stale）。
+"""worker: 30 秒ごとに、支払い期限を過ぎた注文を取り消して在庫の確保を戻す（orders.expire_stale）。宅配（P2）の模擬の進行（dispatch.mock_tick。既定は off）も、ここで回す。
 
     python -m app.worker
 
@@ -11,7 +11,7 @@ import os
 import signal
 import threading
 
-from app import orders, sweep
+from app import dispatch, orders, sweep
 from app.db import close_pool, open_pool
 
 log = logging.getLogger("oasis.worker")
@@ -20,9 +20,11 @@ INTERVAL_SECONDS = float(os.environ.get("WORKER_INTERVAL_SECONDS", "30"))
 
 
 def run_once() -> int:
-    """1 回の巡回。戻した注文の件数を返す（期限切れの提案・古いログイン試行・期限切れのセッションの掃除も、ここで行う）。"""
+    """1 回の巡回。戻した注文の件数を返す（期限切れの提案・古いログイン試行・期限切れのセッションの掃除も、ここで行う）。
+    続けて、模擬の配達を進める（DELIVERY_PROVIDER=mock かつ DELIVERY_MOCK_AUTOPILOT=on のときだけ）。"""
     restored = orders.expire_stale()
     sweep.run()
+    dispatch.mock_tick()
     return restored
 
 

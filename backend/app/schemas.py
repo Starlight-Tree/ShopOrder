@@ -1,9 +1,7 @@
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from typing import Annotated
-
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
 from app import limits
 
@@ -87,6 +85,7 @@ class Cart(BaseModel):
     subtotal_lumi: int
     delivery_fee_lumi: int
     total_lumi: int
+    delivery: "CartDelivery | None" = None  # 宅配（P2）。店頭受け取りは null
 
 
 class CheckoutProposal(BaseModel):
@@ -96,7 +95,11 @@ class CheckoutProposal(BaseModel):
     expires_at: str
     store: StoreRef
     lines: list[CartLine]
-    pickup_note: str
+    pickup_note: str | None  # 宅配（P2）では null
+    fulfillment: str = "pickup"
+    subtotal_lumi: int = 0
+    delivery_fee_lumi: int = 0
+    delivery: "CartDelivery | None" = None
 
 
 class OrderItem(BaseModel):
@@ -137,12 +140,14 @@ class Order(BaseModel):
     cancel_reason: str | None
     can_pay: bool
     can_cancel: bool
+    delivery: "OrderDelivery | None" = None  # 宅配（P2）。店頭受け取りは null
 
 
 class OrderSummary(BaseModel):
     public_id: str
     pickup_no: int
     status: str
+    fulfillment: str = "pickup"
     store: StoreRef
     total_lumi: int
     placed_at: str
@@ -165,6 +170,7 @@ class StaffOrder(BaseModel):
     can_pay: bool
     can_cancel: bool
     allowed_actions: list[str]
+    delivery: "StaffOrderDelivery | None" = None  # 宅配（P2）。店頭受け取りは null
 
 
 class Staff(BaseModel):
@@ -202,6 +208,8 @@ class _Body(BaseModel):
 class CartUpdate(_Body):
     store_id: int | None = Field(ge=1)
     fulfillment: Literal["pickup", "delivery"] = "pickup"
+    address_id: int | None = Field(default=None, ge=1)  # 宅配（P2）。全部を置き換える（省略は null）
+    slot_id: int | None = Field(default=None, ge=1)
 
 
 class CartItemUpdate(_Body):
@@ -239,3 +247,186 @@ class StockWasteBody(_Body):
 class StockAdjustBody(_Body):
     delta: int = Field(ge=-1_000_000, le=1_000_000)
     reason: SafeText = Field(min_length=1, max_length=limits.REASON_MAX)
+
+
+# ---- 宅配（P2。docs/api.md「宅配（P2）」。応答の形と入力） ----
+
+class SlotRef(BaseModel):
+    id: int
+    starts_at: str
+    ends_at: str
+
+
+class ZoneRef(BaseModel):
+    id: int
+    name: str
+
+
+class Zone(BaseModel):
+    id: int
+    name: str
+    area_code: int
+    fee_lumi: int
+    free_over_lumi: int | None
+    min_order_lumi: int
+    base_minutes: int
+    is_suspended: bool
+
+
+class AddressBrief(BaseModel):
+    id: int
+    label: str
+    area_code: int
+    area_name: str
+
+
+class Address(AddressBrief):
+    zone_id: int | None
+    line: str  # 🔒 ログに出さない
+    note: str | None  # 🔒
+    created_at: str
+
+
+class CartDelivery(BaseModel):
+    address: AddressBrief | None
+    zone: Zone | None
+    slot: SlotRef | None
+    fee_lumi: int
+    free_over_lumi: int | None
+    min_order_lumi: int | None
+    issues: list[str]
+
+
+class CourierName(BaseModel):
+    name: str
+
+
+class CourierRef(BaseModel):
+    id: int
+    name: str
+
+
+class AddressLabel(BaseModel):
+    label: str
+
+
+class OrderDelivery(BaseModel):
+    status: str
+    zone: ZoneRef
+    slot: SlotRef
+    courier: CourierName | None
+    pin: str | None  # 集荷後だけ（顧客本人の注文にだけ）
+    eta_at: str | None
+    address: AddressLabel
+    attempt: int
+    failure_reason: str | None
+
+
+class StaffOrderDelivery(BaseModel):
+    status: str
+    zone: ZoneRef
+    slot: SlotRef
+    courier: CourierRef | None
+    attempt: int
+    failure_reason: str | None
+
+
+class Slot(SlotRef):
+    capacity: int
+    booked: int
+    remaining: int
+    available: bool
+    unavailable_reason: str | None
+
+
+class SlotList(BaseModel):
+    store_id: int
+    date: str
+    zone_id: int | None
+    reason: str | None
+    slots: list[Slot]
+
+
+class Courier(BaseModel):
+    id: int
+    store_id: int
+    name: str
+    vehicle: str
+    is_on_duty: bool
+    active_count: int
+    zone: ZoneRef | None
+
+
+class Suggestion(BaseModel):
+    courier_id: int
+    courier_name: str
+    minutes: int
+
+
+class DispatchOrder(StaffOrder):
+    suggestion: Suggestion | None = None
+
+
+class DispatchBoard(BaseModel):
+    provider: str
+    couriers: list[Courier]
+    orders: list[DispatchOrder]
+
+
+class CourierItem(BaseModel):
+    name: str
+    size: str
+    temperature: str
+    qty: int
+
+
+class CourierAddress(BaseModel):
+    label: str
+    line: str  # 🔒 集荷後の担当の配達員だけ
+    note: str | None  # 🔒
+
+
+class CourierDelivery(BaseModel):
+    public_id: str
+    pickup_no: int
+    status: str
+    store: StoreRef
+    zone: ZoneRef
+    slot: SlotRef
+    items: list[CourierItem]
+    address: CourierAddress | None
+    attempt: int
+    pin_attempts_left: int | None
+    eta_at: str | None
+    allowed_actions: list[str]
+
+
+class AddressBody(_Body):
+    label: Annotated[SafeText, StringConstraints(strip_whitespace=True, min_length=1, max_length=20)]
+    area_code: int = Field(ge=1, le=99)
+    line: Annotated[SafeText, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+    note: Annotated[SafeText, StringConstraints(strip_whitespace=True, max_length=100)] | None = None
+
+
+class AssignBody(_Body):
+    courier_id: int = Field(ge=1)
+
+
+class RedeliverBody(_Body):
+    slot_id: int | None = Field(default=None, ge=1)
+
+
+class DeliverBody(_Body):
+    pin: str = Field(pattern=r"^[0-9]{4}$")
+
+
+class FailBody(_Body):
+    reason: Literal["absent", "cannot_receive", "other"]
+
+
+class SuspensionBody(_Body):
+    suspended: bool
+
+
+for _model in (Cart, CheckoutProposal, Order, StaffOrder):
+    _model.model_rebuild()
