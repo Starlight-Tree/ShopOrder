@@ -80,12 +80,12 @@ jobs:
           context: backend
           push: false
           load: true
-          tags: shop-order-api:ci
+          tags: shoporder-api:ci
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
       # DB が無いと API は起動しない（接続プールを開くため）ので、起動はしない。固定した依存がイメージの中で読み込めることだけ確かめる。
       - name: Import the app inside the image
-        run: docker run --rm shop-order-api:ci python -c "import app.main"
+        run: docker run --rm shoporder-api:ci python -c "import app.main"
       # docker-compose.yml の構文と、環境変数の既定値を確かめる（起動はしない。.env は不要）
       - name: Validate docker-compose.yml
         run: docker compose config --quiet

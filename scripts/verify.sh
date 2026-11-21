@@ -38,7 +38,7 @@ done
 wants() { local g; for g in "${groups[@]}"; do [[ "$g" == all || "$g" == "$1" ]] && return 0; done; return 1; }
 
 declare -a passed failed skipped
-log="$(mktemp -t shop-order-verify.XXXXXX)"
+log="$(mktemp -t shoporder-verify.XXXXXX)"
 trap 'rm -f "$log"' EXIT
 
 record() { # 段の名前, 終了コード

@@ -4,13 +4,16 @@
 #   http://localhost:3400            # 画面
 #   http://localhost:8400/docs       # API の仕様（FastAPI の自動文書）
 # 他のローカルのサービス（JobNavi 3200/8200、DocuNavi 3000）と同時に動かせるよう、ポートは 3400 / 8400 にしてある。変えない。
-name: shop-order
+name: shoporder
 
 services:
   # 店・注文などのデータ。ホストにポートを公開せず、internal の backend-net（外へも出られない）にだけ置く。
   db:
     image: postgres:17
-    container_name: shop-order-db
+    container_name: shoporder-db
+    # 表示用ラベル（VS Code のコンテナ一覧のグループ。JobNavi・DocuNavi と同じ local.ui.group）
+    labels:
+      local.ui.group: "App-ShopOrder"
     environment:
       POSTGRES_DB: shop_order
       POSTGRES_USER: shop_order
@@ -33,7 +36,7 @@ services:
   # マイグレーション（番号付き SQL。適用の前に DB のバックアップを取る: docs/development.md）。--status / --dry-run が使える
   migrate:
     build: ./backend
-    container_name: shop-order-migrate
+    container_name: shoporder-migrate
     profiles: ["tools"]
     command: ["python", "-m", "app.migrate"]
     environment:
@@ -48,7 +51,10 @@ services:
   # ダミーのデータ（店・メニュー）を入れる（開発・テスト専用。DEMO_DATA=allow が無いと実行を拒否する。入れ直すときは --reset）
   seed:
     build: ./backend
-    container_name: shop-order-seed
+    container_name: shoporder-seed
+    # 表示用ラベル
+    labels:
+      local.ui.group: "App-ShopOrder"
     profiles: ["tools"]
     command: ["python", "-m", "app.seed_demo"]
     environment:
@@ -63,7 +69,10 @@ services:
 
   api:
     build: ./backend
-    container_name: shop-order-api
+    container_name: shoporder-api
+    # 表示用ラベル
+    labels:
+      local.ui.group: "App-ShopOrder"
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/code/app"]
     environment:
       DATABASE_URL: *database_url
@@ -73,7 +82,7 @@ services:
       DELIVERY_PROVIDER: "${DELIVERY_PROVIDER:-mock}"
       NOTIFIER: "${NOTIFIER:-inapp}"
       CHAT_MODEL: "${CHAT_MODEL:-mock}"
-      # 開発の便宜（本番では使わない。APP_ENV=production のときは、AUTH_MODE=dev と ORDER_HOURS_CHECK=off の組み合わせで起動を拒否する）:
+      # 開発の便宜（本番では使わない。APP_ENV が development / test 以外のときは、AUTH_MODE=dev も ORDER_HOURS_CHECK=off も、それぞれ起動を拒否する）:
       #   AUTH_MODE=dev … 顧客はヘッダー X-Dev-User で入る（Google ログインは P6）。
       #   ORDER_HOURS_CHECK=off … 営業時間・定休日・ラストオーダー・販売時間帯を見ない（いつでも注文を試せる）。季節の期間と臨時休業は、off でも見る。
       #   ローカル時刻は LOCAL_UTC_OFFSET_HOURS（既定 9）。営業時間の判定と営業日に使う。
@@ -103,7 +112,10 @@ services:
   # API も読み取り・確定の前に同じ処理を遅延で呼ぶので、worker が止まっても在庫は固まらない。ポートは公開しない。
   worker:
     build: ./backend
-    container_name: shop-order-worker
+    container_name: shoporder-worker
+    # 表示用ラベル
+    labels:
+      local.ui.group: "App-ShopOrder"
     command: ["python", "-m", "app.worker"]
     environment:
       DATABASE_URL: *database_url
@@ -121,7 +133,10 @@ services:
   # 画面の開発サーバー（frontend/ の next dev）。API はサーバー側（Next.js）から呼ぶので、ブラウザーは API を直接呼ばない。
   frontend:
     image: node:24-slim
-    container_name: shop-order-frontend
+    container_name: shoporder-frontend
+    # 表示用ラベル
+    labels:
+      local.ui.group: "App-ShopOrder"
     working_dir: /app
     environment:
       API_BASE_URL: "http://api:8000"

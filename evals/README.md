@@ -7,10 +7,10 @@
 使い捨ての Postgres 17 を起動して、管理用の URL を `TEST_DATABASE_URL` に渡す（`backend/` のテストと同じ。無いと、DB の評価はスキップされる）。
 
 ```bash
-docker run -d --name shop-order-pg-eval -p 127.0.0.1:55499:5432 -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17   # ポートは空いているもの
+docker run -d --name shoporder-pg-eval -p 127.0.0.1:55499:5432 -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17   # ポートは空いているもの
 cd backend && python3.13 -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.in   # 初回だけ（新しい依存は無い）
 cd ../evals && TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:55499/postgres ../backend/.venv/bin/python -m pytest -q
-docker stop shop-order-pg-eval   # 終わったら止める
+docker stop shoporder-pg-eval   # 終わったら止める
 ```
 
 `evals/pytest.ini` が `backend/`（`app`・`tests` の道具）を読む。評価は、専用の DB（`shop_order_eval`）を作り直して、API（FastAPI の TestClient）を本番と同じ経路（SSE）で呼ぶ。**CI にはまだ組み込んでいない**（`ci.yml` は、この担当の範囲外。足すなら、backend のジョブの後に `cd evals && python -m pytest -q` の 1 段）。
