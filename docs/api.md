@@ -294,3 +294,51 @@
 
 バックエンド・画面とも実装した（店頭受け取りだけ。宅配の分析は P2 の後）。集計の作成は `python -m app.analytics_build`（[metrics.md](metrics.md)）。ダミーの履歴は `DEMO_DATA=allow python -m app.seed_demo --reset --history`。**この節のエンドポイントは、API の約束としては新設**（P1 の契約を変えていない）。
 
+## チャット（P3）
+
+設計は [chat.md](chat.md)、実装は `backend/app/chat/`・`backend/app/routes/chat.py`。**AI が作れるのは、カートの下書きと確認カードまで。注文の確定は、画面の確定ボタン → `POST /api/orders`（上の「注文」。`Idempotency-Key` つき）だけ**で、チャットのどの API・ツールからも通らない（[ADR 0003](decisions/0003-chat-never-confirms-orders.md)）。認証は顧客（`X-Dev-User`。上の「認証」）。画面のサーバー側（Route Handler）から呼び、ブラウザーは直接呼ばない。
+
+| API | 内容 |
+|---|---|
+| `POST /api/chat/threads` `{store_id}` | スレッドを作る。**店は必須で、あとから変えない。** 201 `{id, store: {id, name}, created_at}`。存在しない店は 404 `store_not_found`。余分な項目は 422。1 利用者 1 日 20 スレッドまで（429 `chat_rate_limited`） |
+| `POST /api/chat/threads/{id}/messages` `{content}` | 発話を送り、応答を **SSE**（`text/event-stream`）で受ける（下）。`content` は 1〜500 文字（前後の空白を除く。空は 422）。始める前に、HTTP で: 404（他人の・期限切れ・無いスレッド）・409 `chat_busy`（前の発話を処理中）・409 `chat_thread_full`（1 スレッド 60 発話まで）・429 `chat_rate_limited`（1 利用者 1 日 100 発話まで） |
+| `GET /api/chat/threads/{id}` | 履歴。`{id, store, created_at, messages: [{id, role: "user" \| "assistant", content, cards, created_at}]}`。他人のものは 404（存在しないスレッドと同じ本文）。`cards` は、サーバーがツールの結果から作ったカード（assistant のみ）。**確認カードは期限が切れていることがある**（確定の API が検証する） |
+| `DELETE /api/chat/threads/{id}` | 自分のスレッドを、発話・ツール呼び出しの記録ごと消す。204。応答を作っている途中は 409 `chat_busy` |
+
+エラーは他と同じ `{"detail": {"code", "message"}}`（固定の文）。追加の `code`: `chat_busy`(409) / `chat_thread_full`(409) / `chat_rate_limited`(429)。
+
+### 保存期間
+
+会話の本文は個人情報。`CHAT_RETENTION_DAYS`（既定 30。1〜365）を過ぎたスレッドは、読めず（404）、削除の対象になる。1 日の件数（`chat_usage`）は本文を持たず、スレッドを消しても戻らない。ログに本文は出さない。
+
+### SSE（`POST .../messages` の応答）
+
+ヘッダー: `content-type: text/event-stream`、`x-vercel-ai-ui-message-stream: v1`、`cache-control: no-cache, no-transform`。1 チャンクは `data: <JSON>` の行と空行。イベントが無い間（10 秒ごと）は、コメント行 `: ping`（無視してよい）。最後に `data: [DONE]`。形は AI SDK の UI message stream v1 に寄せた（フロントは、まだ作らない）。
+
+```
+start                  {messageId, messageMetadata: {thread_id}}
+tool-input-available   {toolCallId, toolName, input, providerMetadata: {oasis: {auto}}}   ターンの先頭の get_cart は auto: true
+tool-output-available  {toolCallId, output: {ok, summary, error?}}                        要約だけ（中身は、カードで出す）
+data-card              {data: <カード>}
+text-start / text-delta{delta} … / text-end                                              ガードを通った全文。24 文字ごとに分ける
+finish                 {messageMetadata: {message_id, guard}}                             guard = 本文を置き換えた理由のコード（無ければ null）
+error                  {errorText}                                                        失敗のとき（固定の文）。続けて [DONE]
+```
+
+並び: `start` → ターンの先頭の `get_cart` → （モデルの文があれば `text-*`）→ ツール呼び出しごとに `tool-input-available` → `tool-output-available` → `data-card`（0 枚以上）→ … → 最後の文 → `finish` → `[DONE]`。切断は失敗ではない（サーバーは、ステップの間で止める）。
+
+**カード**（`data-card` の `data.kind`。すべてサーバーがツールの結果から作る。商品名・備考などは**画面でエスケープする**）:
+
+| kind | 中身 |
+|---|---|
+| `products` | `items: [{item_id, code, name, category, allergens, variants: [{variant_id, size, temperature, price_lumi, available, unavailable_reason}]}]`（最大 8 品） |
+| `cart` | `cart`: 上の `Cart` と同じ形 |
+| `confirm` | **確認カード**。`proposal`: 上の `CheckoutProposal` と同じ形（`id`・`cart_version`・`total_lumi`・`expires_at`・`store`・`lines`・`pickup_note`）、`action: {type: "place_order", label: "注文を確定する"}`。**確定ボタンは、このカードにだけ出す**（モデルの文章からは出さない）。ボタンは `POST /api/orders {proposal_id}` を呼ぶ |
+| `orders` | `orders: [{public_id, pickup_no, status, status_label, store, total_lumi, placed_at, items}]`（自分の注文だけ。最大 5 件） |
+| `order` | `order`: 上の 1 件（`orders` の要素と同じ形） |
+
+### ツール（AI に見せるもの）
+
+`search_menu`・`get_item`・`get_cart`・`set_cart_item`・`set_fulfillment`・`check_slots`・`propose_checkout`・`list_my_orders`・`get_order_status` の 9 つだけ（[chat.md](chat.md)「ツール」）。引数に `user_id`・`store_id` は無く、余分な引数は拒否する。1 ターンの書き込み（`set_cart_item`・`set_fulfillment`・`propose_checkout`）は 3 回まで。宅配（`set_fulfillment` の `delivery`・`check_slots`）は準備中で、`delivery_unavailable` を返す（P2 まで）。ツール呼び出しは `chat_tool_calls` に残る（名前・引数・状態 `ok` / `error` / `rejected`・結果・カートの版の前後）。
+
+**状態（2026-11-21）:** 上のすべてをバックエンドに実装した。実モデルは未接続（`CHAT_MODEL=mock`。`gemini` は起動時にエラー）。

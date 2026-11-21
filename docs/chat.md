@@ -45,10 +45,13 @@
 ## 構成
 
 ```
-画面（useChat）─ /api/chat（Next の Route Handler。Cookie → 短命 JWT）─ FastAPI /chat/stream（SSE。UI message stream）
-                                                                   └ LangGraph: guard_input → agent ⇄ tools → guard_output
-                                                                      ChatModel（模擬 / Gemini）  ツール = 上の表  DB = カート・提案
+画面（useChat）─ /api/chat（Next の Route Handler。Cookie → 短命 JWT。画面は後）─ FastAPI /api/chat/threads/{id}/messages（SSE。UI message stream）
+                                                                   └ 素の Python のループ（backend/app/chat/agent.py）:
+                                                                      入力ガード → get_cart（自動）→ ChatModel ⇄ ツール → 出力ガード → 保存
+                                                                      ChatModel（模擬 / Gemini は P6）  ツール = 上の表（cart.py・orders.py と同じサービス関数）  DB = スレッド・発話・監査
 ```
+
+**LangGraph・langchain は使わない**（2026-11-21 の指示。ツールを呼ぶ会話のループは、素の Python で足りる。短い 1 ターンで終わるので、グラフの状態の保存・再開が要らない）。このため、[architecture.md](architecture.md) の「LangGraph + langchain-google-genai」の記述は、P6 で Gemini を入れるときに直す（未直し）。
 
 - DocuNavi の骨格を写す: 入出力ガード（NFKC 等で回避に耐える正規表現・漏洩の検査・`StreamingOutputGuard`）、`config["configurable"]` で利用者・店を渡す、固定の失敗文、切断を失敗にしないストリーム、10 秒の keepalive。
 - **書き込みの安全:** ツールは 1 回の DB トランザクションで完結し、取り消しから守る。`(thread_id, tool_call_id)` で冪等にし、ターンの先頭で `get_cart` を読み直させる。履歴に「結果の無いツール呼び出し」が残る場合は、DocuNavi と同じく外す（結果は捏造しない）。
@@ -75,3 +78,39 @@ AI 店員の名前・口調は資料に無い（新設）。来店客向けの�
 | 主を①にしてよいか | 主 = ①（上の表）|
 | 店長向けの分析チャット（売上を聞く） | MVP ではやらない。やるときは、自由な SQL を渡さず、固定の指標（enum）だけ |
 | 声・画像での注文 | やらない |
+
+## 状態（2026-11-21）
+
+**バックエンドと評価を実装した**（`backend/app/chat/`・`backend/app/routes/chat.py`・マイグレーション `0007_chat.sql`・`evals/`）。画面（useChat・カードの描画）は、顧客の画面の担当が終わってから別に作る。API の形は [api.md](api.md)「チャット（P3）」、評価の流し方と限界は [evals/README.md](../evals/README.md)。
+
+**作ったもの**
+
+- ループ（`agent.py`）、差し替え口 `ChatModel`（`model.py`。Protocol）、模擬モデル（`mock_model.py`。決定的な規則ベース。台本のジェネレーターを毎回再生する）、ツール 9 つ（`tools.py`。表のとおり）、ガード（`guardrails.py`）、保存・上限・保存期間（`service.py`）、SSE（`stream.py`）。
+- **確定・決済・個人情報の変更のツールは、存在しない。** 定義（`TOOLS`）が表の 9 つだけで、定義に無い名前は実行の入口が拒否する（`rejected`。監査に残る）。テストで示した: 定義の集合が 9 つと一致・禁止名 19 個を拒否・引数の余分（`user_id`・`store_id` など）を拒否。
+- ツールは P1 の**同じサービス関数**を呼ぶ（`cart.py` の `read`・`set_item`・`set_store`・`create_proposal`、`orders.py` の `list_for_customer`・`get_for_customer`、`rules.py`・`inventory.py`）。メニューの読み取りは、`/api/menu` が `main.py` に直接書かれていてサービス関数が無いため、同じ規則関数（`rules.item_unavailable_reason`・`inventory.variant_stock`）を使って `tools.py` に書いた。**`/api/menu` と同じ結果になること**はテストで見ている（`test_search_menu_agrees_with_the_menu_api`）。
+- ツール結果は信頼できないデータ: 商品名・説明・店名は `scrub_untrusted`（長さ 120 文字・指示に見える文は伏せる・`[` `]` を全角に）を通し、`wrap_untrusted` の包みでモデルに渡す。他人の注文は存在しない注文と同じ `not_found`。
+- 出力ガード（全文をガードしてから流す）: 確定の言い切り・ツール結果に無い価格（円も不可）・アレルギーの言い切り・プロンプトの漏洩を、固定の文に置き換える。入力ガード: 指示の上書き・プロンプトの開示・役の乗っ取り・テンプレートの偽装・内部のツール名の指定（DocuNavi の `guardrails.py` から、「前の指示」「取り消し・キャンセルを除く」など注文用に書き直した）。
+
+**設計から変えた点・決めた細部（理由つき。多くは「新設」）**
+
+| 点 | 内容 |
+|---|---|
+| ターンの先頭の `get_cart` | 表は「読み直させる」だったが、サーバーが**自動で 1 回呼ぶ**（モデルに任せず、必ず最新を見せる）。画面にカードは出さない（ツール呼び出しの記録には残る。`auto: true`） |
+| スレッドの店 | `POST /api/chat/threads` で店を**必須**にして固定する（`chat_threads.store_id` は NOT NULL。data-model.md の「null」から変更）。書き込みのツール（`set_cart_item`・`set_fulfillment`・`propose_checkout`）は、カートの店・受け取り方法をスレッドの店の店頭受け取りに合わせる（違うときだけ。版が上がる）。`get_cart` は書き換えず、`store_matches` を返す |
+| `set_cart_item` の `options` | 省略した。オプションは P1 に無い（`cart_items` に列が無い） |
+| `set_fulfillment(delivery)`・`check_slots` | 宅配（P2）が入るまで、固定の応答 `delivery_unavailable`（「宅配は準備中」）。P2 の実装が入ったら、この 2 つの `_set_fulfillment`・`_check_slots` を差し替える |
+| 冪等 | `(thread_id, tool_call_id)` が UNIQUE。書き込みのツールは、同じ ID の呼び出しを 2 回実行せず、保存した結果を返す。ID は agent が `m<利用者の発話の ID>-<通し番号>` で付ける（モデルの ID に頼らない） |
+| 履歴 | モデルに渡す過去は、本文だけ（最新 20 件）。ツール結果は渡さない（ターンの先頭の `get_cart` で足りる）。「結果の無いツール呼び出し」が履歴に残る場面が無いので、DocuNavi の除去は写していない。入力ガードが拒否した発話は、伏せた文で保存する |
+| 1 スレッド 1 ターン | `chat_threads.busy_until`（期限つきの貸し出し。120 秒）。同時の発話は 409 `chat_busy`。落ちても期限で外れる |
+| 上限（設計の既定。`app/chat/config.py`） | 発話 500 文字・1 利用者 1 日 100 発話・1 日 20 スレッド・1 スレッド 60 発話・1 ターンでモデル 12 回・ツール 12 回・書き込み 3 回。1 日の件数は `chat_usage`（本文を持たない）で数え、スレッドを消しても戻らない |
+| 保存期間 | `CHAT_RETENTION_DAYS`（既定 30。1〜365。不正なら起動失敗）。期限を過ぎたスレッドは読めなくなり（404）、スレッドの作成のついでに消す（`purge_expired`）。**worker からは呼んでいない**（`worker.py` が他の担当と衝突しやすいため。worker に 1 行足せば定期的に消せる） |
+| カード | サーバーがツールの結果から作る（`products`・`cart`・`confirm`・`orders`・`order`）。確認カードだけに確定の操作（`action`）が付く。保存するカートのカードは最後の 1 枚だけ |
+| ストリームの形 | AI SDK の UI message stream v1 に寄せた。モデルの文は全文をガードしてから 24 文字ごとに流す（ガード前の文は画面に出ない）。実モデルでトークンごとに流すときは、DocuNavi の `StreamingOutputGuard` 相当が要る（P6） |
+| keepalive・切断 | 10 秒ごとに `: ping`。切断はステップの間で見て止める（書き込みは 1 つずつ commit 済みで矛盾は残らない）。切断は失敗として扱わない |
+| ヘッジ・フォールバック・有料キーの切替 | 持ち込んでいない（Gemini は書かない。P6） |
+| `CHAT_MODEL=gemini` | 未実装なので、起動時に明確なエラー（`RuntimeError`）。模擬へ黙って落とさない |
+| `orders.source` | 確定の API（P1）は `source = 'screen'` 固定で、チャット経由の確認カードから確定した注文も `screen` になる。区別したければ、`checkout_proposals` に出どころを持たせる変更が P1 の側に要る（未対応。監査 `chat_tool_calls.result` の提案 ID で、後から突き合わせはできる） |
+
+**確認の範囲（2026-11-21、ソースの実行で確認）:** 使い捨ての Postgres 17（Docker。ポート 55453）で、`backend/` のテストと `evals/` の評価を実行した。結果は、作業の報告（RESULT）に書いた。**確認していないこと:** 実モデル（Gemini）での挙動・ツール選択（評価は模擬モデルの配線の確認で、実モデルの代わりにならない）、`docker compose` 越しの結線、複数プロセスの API での負荷、フロントエンドとの結合（まだ無い）、CI への組み込み（`ci.yml` は触っていない）。
+
+**まだの点:** 画面（useChat・カード・確定ボタンの描画）、Gemini の実装（P6。承認制）、宅配のツール（P2 の後）、worker からの期限切れの削除、`architecture.md` の LangGraph の記述の修正、実モデルでの評価（承認制）。
