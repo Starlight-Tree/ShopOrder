@@ -25,7 +25,7 @@ def _dev_defaults(monkeypatch):
     from app import clock
 
     monkeypatch.setenv("ORDER_HOURS_CHECK", "off")
-    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.setenv("APP_ENV", "test")  # 開発専用の設定（AUTH_MODE=dev など）は、development / test と明示された環境だけで許す
     monkeypatch.delenv("AUTH_MODE", raising=False)
     monkeypatch.delenv("LOCAL_UTC_OFFSET_HOURS", raising=False)
     yield
@@ -41,6 +41,7 @@ def client():
     test_url = new_database("oasis_test")
     os.environ["DATABASE_URL"] = test_url
     os.environ["DEMO_STAFF_PASSWORD"] = "test-staff-pass"
+    os.environ["APP_ENV"] = "test"  # セッションの fixture は、関数単位の _dev_defaults より先に動く。lifespan の起動検査（許可リスト）を通すため
     from app import migrate, seed_demo
 
     assert migrate.apply(test_url, out=lambda *_: None) == 0

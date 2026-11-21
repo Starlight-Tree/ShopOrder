@@ -11,7 +11,7 @@ import os
 import signal
 import threading
 
-from app import orders
+from app import orders, sweep
 from app.db import close_pool, open_pool
 
 log = logging.getLogger("oasis.worker")
@@ -20,8 +20,10 @@ INTERVAL_SECONDS = float(os.environ.get("WORKER_INTERVAL_SECONDS", "30"))
 
 
 def run_once() -> int:
-    """1 回の巡回。戻した注文の件数を返す。"""
-    return orders.expire_stale()
+    """1 回の巡回。戻した注文の件数を返す（期限切れの提案・古いログイン試行・期限切れのセッションの掃除も、ここで行う）。"""
+    restored = orders.expire_stale()
+    sweep.run()
+    return restored
 
 
 def main() -> None:

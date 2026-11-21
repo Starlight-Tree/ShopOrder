@@ -2,6 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Query, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -32,6 +33,14 @@ app.add_middleware(CORSMiddleware, allow_origins=cors_origins(), allow_methods=[
 app.include_router(cart_routes.router)
 app.include_router(order_routes.router)
 app.include_router(staff_routes.router)
+
+
+@app.exception_handler(RequestValidationError)
+async def invalid_input(_: Request, exc: RequestValidationError) -> JSONResponse:
+    """入力の形の誤り（422）。契約どおり detail は配列だが、**入力の値は返さない**（pydantic 既定の input・ctx を含めない）。
+    値を返すと、(1) 単独のサロゲートを含む入力で応答の JSON 化が失敗して 500 になり、(2) 入力した個人情報（パスワード・メール）が応答に出る。"""
+    errors = [{"loc": list(e.get("loc", ())), "msg": str(e.get("msg", "")), "type": str(e.get("type", ""))} for e in exc.errors()]
+    return JSONResponse(status_code=422, content={"detail": errors})
 
 
 @app.exception_handler(Exception)

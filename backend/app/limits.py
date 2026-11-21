@@ -7,6 +7,7 @@ MAX_QTY = 20  # 1 行の数量の上限
 MAX_TOTAL_LUMI = 30_000  # 1 注文の合計の上限（ルミ）
 IDEMPOTENCY_KEY_MIN = 8
 IDEMPOTENCY_KEY_MAX = 64
+MAX_UNPAID_ORDERS = 2  # 1 人が同時に持てる、未払い（placed）の注文の数。超えたら 409
 REASON_MAX = 200  # 取消し・調整の理由の文字数
 
 PROPOSAL_TTL = timedelta(minutes=10)  # 確定の許可証の有効期間

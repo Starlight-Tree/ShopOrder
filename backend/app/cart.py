@@ -103,27 +103,32 @@ def set_store(conn: Connection, user_id: int, store_id: int | None, fulfillment:
 
 
 def set_item(conn: Connection, user_id: int, variant_id: int, qty: int, now: datetime, now_local: datetime) -> dict:
-    """絶対値指定。qty 0 で外す。1 注文の行は 30 まで。"""
+    """絶対値指定。qty 0 で外す。1 注文の行は 30 まで。**値が変わらないときは版を上げない**（二重クリック・再送・チャットと画面の同じ指定で、確定の許可証が無効にならない）。"""
     cart = get_cart(conn, user_id, now, lock=True)
+    changed = True
     if qty == 0:
-        conn.execute("DELETE FROM cart_items WHERE cart_id = %s AND variant_id = %s", (cart["id"], variant_id))
+        changed = conn.execute("DELETE FROM cart_items WHERE cart_id = %s AND variant_id = %s RETURNING 1", (cart["id"], variant_id)).fetchone() is not None
     else:
         variant = conn.execute(
             "SELECT v.id FROM menu_variants v JOIN menu_items i ON i.id = v.item_id WHERE v.id = %s AND i.is_active", (variant_id,)
         ).fetchone()
         if variant is None:
             raise ApiError(404, "variant_not_found")
-        exists = conn.execute("SELECT 1 FROM cart_items WHERE cart_id = %s AND variant_id = %s", (cart["id"], variant_id)).fetchone()
-        if exists is None:
+        current = conn.execute("SELECT qty FROM cart_items WHERE cart_id = %s AND variant_id = %s", (cart["id"], variant_id)).fetchone()
+        if current is None:
             count = conn.execute("SELECT count(*) AS n FROM cart_items WHERE cart_id = %s", (cart["id"],)).fetchone()["n"]
             if count >= limits.MAX_LINES:
                 raise ApiError(422, "too_many_lines")
-        conn.execute(
-            "INSERT INTO cart_items (cart_id, variant_id, qty, added_at) VALUES (%s, %s, %s, %s) "
-            "ON CONFLICT (cart_id, variant_id) DO UPDATE SET qty = EXCLUDED.qty",
-            (cart["id"], variant_id, qty, now),
-        )
-    _bump(conn, cart["id"], now)
+        elif current["qty"] == qty:
+            changed = False
+        if changed:
+            conn.execute(
+                "INSERT INTO cart_items (cart_id, variant_id, qty, added_at) VALUES (%s, %s, %s, %s) "
+                "ON CONFLICT (cart_id, variant_id) DO UPDATE SET qty = EXCLUDED.qty",
+                (cart["id"], variant_id, qty, now),
+            )
+    if changed:
+        _bump(conn, cart["id"], now)
     return _reload(conn, user_id, now, now_local)
 
 

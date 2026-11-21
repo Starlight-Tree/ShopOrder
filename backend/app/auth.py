@@ -9,7 +9,6 @@ import hashlib
 import re
 import secrets
 from dataclasses import dataclass
-from datetime import timedelta
 from typing import Annotated
 
 from argon2 import PasswordHasher
@@ -28,14 +27,21 @@ _DUMMY_HASH = _hasher.hash("dummy-password-for-timing")
 
 
 def check_startup() -> None:
-    """起動時の検査。本番相当の環境で、開発専用の設定が残っていたら起動を拒否する（RuntimeError。別の値へ黙って落とさない）。"""
+    """起動時の検査。開発専用の設定は、APP_ENV が development / test と**明示された**環境だけで許す（RuntimeError。別の値へ黙って落とさない）。
+
+    未設定・表記の揺れ（Production・prod・staging など）・未知の値は、開発ではないものとして扱う（許可リスト方式。2026-11-21 の読み取りレビューで、
+    「production と完全一致のときだけ拒否」だと表記違いで X-Dev-User のなりすましが残ると指摘された）。
+    """
     settings.auth_mode()  # 許さない値は、ここで例外
     settings.order_hours_check()
-    if settings.app_env() == "production":
+    settings.local_utc_offset_hours()  # 不正な値は、最初のリクエストの 500 ではなく、起動で止める
+    if not settings.is_dev_environment():
         if settings.auth_mode() == "dev":
-            raise RuntimeError("APP_ENV=production では AUTH_MODE=dev で起動できません")
+            raise RuntimeError("AUTH_MODE=dev は、APP_ENV=development または test のときだけ使えます")
         if not settings.order_hours_check():
-            raise RuntimeError("APP_ENV=production では ORDER_HOURS_CHECK=off で起動できません")
+            raise RuntimeError("ORDER_HOURS_CHECK=off は、APP_ENV=development または test のときだけ使えます")
+        if settings.provider("PAYMENT_PROVIDER") == "mock":
+            raise RuntimeError("PAYMENT_PROVIDER=mock（模擬決済）は、APP_ENV=development または test のときだけ使えます")
 
 
 # ---- ハッシュ ----
@@ -141,41 +147,41 @@ OrderStaffDep = Annotated[StaffUser, Depends(staff_for_orders)]
 
 
 def login(email: str, password: str) -> dict:
-    """成功なら {token, expires_at, staff}。失敗は ApiError（401 / 429）。失敗の記録は、応答の前に commit する。"""
+    """成功なら {token, expires_at, staff}。失敗は ApiError（401 / 429）。
+
+    試行は、パスワードを確かめる**前**に、email ごとに直列化して数える（pg_advisory_xact_lock。短いトランザクション）。
+    同時に多数の誤りを送られても、確かめるのは上限の回数までになる（数えてから確かめる）。argon2 の検証は DB の接続を持たずに行う。
+    成功したら、そのメールの試行を消す。失敗の記録は残る。古い行の掃除は worker（app/sweep.py）。
+    """
     now = clock.utc_now()
     eh = email_hash(email)
-    outcome: dict | None = None
-    locked = False
     with connection() as conn:
-        conn.execute("DELETE FROM staff_login_attempts WHERE at < %s", (now - timedelta(days=1),))
-        conn.execute("DELETE FROM staff_sessions WHERE expires_at < %s", (now,))
-        failures = conn.execute(
+        conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (eh,))
+        attempts = conn.execute(
             "SELECT count(*) AS n FROM staff_login_attempts WHERE email_hash = %s AND at > %s", (eh, now - limits.LOGIN_WINDOW)
         ).fetchone()["n"]
-        if failures >= limits.LOGIN_MAX_FAILURES:
-            locked = True
-        else:
-            row = conn.execute(
-                "SELECT id, name, role, store_id, password_hash, is_active FROM staff_accounts WHERE email = %s", (email.strip().lower(),)
-            ).fetchone()
-            ok = verify_password(row["password_hash"] if row else _DUMMY_HASH, password) and row is not None and row["is_active"]
-            if not ok:
-                conn.execute("INSERT INTO staff_login_attempts (email_hash, at) VALUES (%s, %s)", (eh, now))
-            else:
-                conn.execute("DELETE FROM staff_login_attempts WHERE email_hash = %s", (eh,))
-                token = secrets.token_urlsafe(32)
-                expires_at = now + limits.STAFF_SESSION_TTL
-                conn.execute(
-                    "INSERT INTO staff_sessions (token_hash, staff_id, expires_at, created_at) VALUES (%s, %s, %s, %s)",
-                    (token_hash(token), row["id"], expires_at, now),
-                )
-                staff = StaffUser(id=row["id"], name=row["name"], role=row["role"], store_id=row["store_id"])
-                outcome = {"token": token, "expires_at": expires_at, "staff": staff}
+        locked = attempts >= limits.LOGIN_MAX_FAILURES
+        if not locked:
+            conn.execute("INSERT INTO staff_login_attempts (email_hash, at) VALUES (%s, %s)", (eh, now))
     if locked:
         raise ApiError(429, "too_many_attempts")
-    if outcome is None:
+    with connection() as conn:
+        row = conn.execute(
+            "SELECT id, name, role, store_id, password_hash, is_active FROM staff_accounts WHERE email = %s", (email.strip().lower(),)
+        ).fetchone()
+    ok = verify_password(row["password_hash"] if row else _DUMMY_HASH, password) and row is not None and row["is_active"]
+    if not ok:
         raise ApiError(401, "invalid_credentials")
-    return outcome
+    token = secrets.token_urlsafe(32)
+    expires_at = now + limits.STAFF_SESSION_TTL
+    with connection() as conn:
+        conn.execute("DELETE FROM staff_login_attempts WHERE email_hash = %s", (eh,))
+        conn.execute(
+            "INSERT INTO staff_sessions (token_hash, staff_id, expires_at, created_at) VALUES (%s, %s, %s, %s)",
+            (token_hash(token), row["id"], expires_at, now),
+        )
+    staff = StaffUser(id=row["id"], name=row["name"], role=row["role"], store_id=row["store_id"])
+    return {"token": token, "expires_at": expires_at, "staff": staff}
 
 
 def logout(token: str) -> None:

@@ -22,6 +22,7 @@ MESSAGES: dict[str, str] = {
     "store_closed": "この店は今、注文を受けられません。",
     "item_unavailable": "今は出せない品があります。",
     "sold_out": "売り切れの品があります。",
+    "too_many_unpaid_orders": "お支払い待ちの注文があります。お支払いまたは取消しをしてから、ご注文ください。",
     "over_limit": "1 回の注文は 30,000 ルミまでです。",
     "proposal_expired": "確認の有効期限が切れました。もう一度確認してください。",
     "proposal_stale": "カートの内容が変わりました。もう一度確認してください。",

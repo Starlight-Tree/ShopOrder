@@ -6,7 +6,7 @@
 
 - 画面のサーバー側（Next.js の Route Handler / Server Action / Server Component）から呼ぶ。**ブラウザーは API を直接呼ばない。**
 - 日時は ISO 8601（UTC、`Z` つき）。金額はルミの整数。ID は整数（注文だけ `public_id` の文字列）。
-- エラーは `{"detail": {"code": "<機械用>", "message": "<固定の日本語>"}}`。例外の文字列・パスは含めない。入力の形の誤りだけ FastAPI 既定の 422（`detail` が配列）。
+- エラーは `{"detail": {"code": "<機械用>", "message": "<固定の日本語>"}}`。例外の文字列・パスは含めない。入力の形の誤りだけ 422（`detail` が配列で、各要素は `loc`・`msg`・`type`。**入力した値は返さない**）。NUL・制御文字・単独のサロゲートを含む文字列も 422。
 - 見つからない・他人のものは **404**（存在を教えない）。許されない状態の変更は **409**。
 
 ## 認証
@@ -62,7 +62,7 @@
 
 | API | 内容 |
 |---|---|
-| `POST /api/orders` ヘッダー `Idempotency-Key`（8〜64 文字）、本文 `{proposal_id}` | 確定。201 で `Order`（`placed`）。在庫を確保し、カートを空にする。同じキー・同じ本文の再送は 200 で同じ注文。同じキー・違う本文は 422 `idempotency_conflict`。**確定の API を呼べるのは画面の確定ボタンだけ**（チャットには渡さない） |
+| `POST /api/orders` ヘッダー `Idempotency-Key`（8〜64 文字）、本文 `{proposal_id}` | 確定。201 で `Order`（`placed`）。在庫を確保し、カートを空にする。同じキー・同じ本文の再送は 200 で同じ注文。同じキー・違う本文は 422 `idempotency_conflict`。**未払い（`placed`）の注文は 1 人 2 件まで**（超えたら 409 `too_many_unpaid_orders`。払うか取り消すと、また確定できる）。**確定の API を呼べるのは画面の確定ボタンだけ**（チャットには渡さない） |
 | `POST /api/orders/{public_id}/pay` `{simulate?: "ok" \| "decline"}` | 模擬決済。`ok`（既定）で `paid`。`decline` は 402 `payment_declined` で、注文は `cancelled`・確保を戻す。確保の期限（15 分）が過ぎていたら 409 `reservation_expired`（注文は `cancelled`） |
 | `POST /api/orders/{public_id}/cancel` | 顧客の取消し（`placed` / `paid` のとき。受付後は 409 `not_cancellable`）。支払い済みなら返金（`payments` を `refunded`） |
 | `GET /api/orders` | 自分の注文（新しい順・50 件まで）。`items` は含めない軽い形: `public_id, pickup_no, status, store, total_lumi, placed_at` |

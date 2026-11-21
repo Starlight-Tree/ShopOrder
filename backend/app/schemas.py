@@ -1,9 +1,23 @@
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Annotated
+
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from app import limits
+
+
+def _no_control_chars(value: str) -> str:
+    """NUL・制御文字（改行・タブを除く）・単独のサロゲートを拒否する（DB が 500 で落ちる入力を、422 にする。2026-11-21 のレビュー）。"""
+    for ch in value:
+        code = ord(ch)
+        if (code < 32 and ch not in "\n\t") or code == 127 or 0xD800 <= code <= 0xDFFF:
+            raise ValueError("使えない文字が含まれています")
+    return value
+
+
+SafeText = Annotated[str, AfterValidator(_no_control_chars)]
 
 
 class Store(BaseModel):
@@ -203,25 +217,25 @@ class PayBody(_Body):
 
 
 class LoginBody(_Body):
-    email: str = Field(min_length=3, max_length=254)
-    password: str = Field(min_length=1, max_length=200)
+    email: SafeText = Field(min_length=3, max_length=254)
+    password: SafeText = Field(min_length=1, max_length=200)
 
 
 class TransitionBody(_Body):
     action: Literal["accept", "start", "ready", "complete", "cancel"]
-    reason: str | None = Field(default=None, max_length=limits.REASON_MAX)
+    reason: SafeText | None = Field(default=None, max_length=limits.REASON_MAX)
 
 
 class StockReceiveBody(_Body):
     qty: int = Field(ge=1, le=1_000_000)
-    reason: str | None = Field(default=None, max_length=limits.REASON_MAX)
+    reason: SafeText | None = Field(default=None, max_length=limits.REASON_MAX)
 
 
 class StockWasteBody(_Body):
     qty: int = Field(ge=1, le=1_000_000)
-    reason: str = Field(min_length=1, max_length=limits.REASON_MAX)
+    reason: SafeText = Field(min_length=1, max_length=limits.REASON_MAX)
 
 
 class StockAdjustBody(_Body):
     delta: int = Field(ge=-1_000_000, le=1_000_000)
-    reason: str = Field(min_length=1, max_length=limits.REASON_MAX)
+    reason: SafeText = Field(min_length=1, max_length=limits.REASON_MAX)

@@ -16,8 +16,16 @@ def cors_origins() -> list[str]:
 
 
 def app_env() -> str:
-    """development（既定）/ production など。production では、開発専用の設定（AUTH_MODE=dev・ORDER_HOURS_CHECK=off）で起動しない。"""
-    return os.environ.get("APP_ENV", "development")
+    """APP_ENV を strip().lower() で正規化して返す。未設定は空文字（開発とは見なさない。is_dev_environment を見る）。"""
+    return os.environ.get("APP_ENV", "").strip().lower()
+
+
+DEV_ENVIRONMENTS = ("development", "test")
+
+
+def is_dev_environment() -> bool:
+    """開発専用の設定（AUTH_MODE=dev・ORDER_HOURS_CHECK=off・模擬決済）を許す環境か。development / test と明示されたときだけ True（許可リスト）。"""
+    return app_env() in DEV_ENVIRONMENTS
 
 
 AUTH_MODES = ("dev",)  # 顧客の認証。dev = ヘッダー X-Dev-User（開発専用）。本物のログイン（Better Auth・JWT）は P6
@@ -83,3 +91,5 @@ def require_demo_data_allowed() -> None:
     """ダミーデータの投入（seed_demo）は、DEMO_DATA=allow を明示した環境だけ。本番の環境には、この値を渡さない。"""
     if os.environ.get("DEMO_DATA") != "allow":
         raise SystemExit("ダミーデータの投入は、DEMO_DATA=allow を渡した開発・テストの環境だけです。実行しませんでした。")
+    if os.environ.get("APP_ENV", "").strip().lower() == "production":
+        raise SystemExit("APP_ENV=production では、ダミーデータの投入（特に --reset）を実行しません。")

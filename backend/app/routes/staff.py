@@ -54,7 +54,7 @@ def me(staff: StaffDep) -> dict:
 @router.get("/orders", response_model=list[StaffOrder])
 def staff_orders(staff: OrderStaffDep, status: str | None = Query(default=None, max_length=200), store_id: int | None = Query(default=None, ge=1)) -> list[dict]:
     statuses = DEFAULT_STATUSES if not status else [s.strip() for s in status.split(",") if s.strip()]
-    if not statuses or any(s not in orders.ALL_STATUSES for s in statuses):
+    if not statuses or any(s not in orders.STAFF_VISIBLE_STATUSES for s in statuses):
         raise ApiError(422, "invalid_status")
     return orders.list_for_staff(resolve_store(staff, store_id), statuses)
 

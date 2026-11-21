@@ -4,10 +4,11 @@
 「取消しを commit してから、エラーで答える」（注文を cancelled にして確保を戻した結果を残すため）。
 
 ロックの順（デッドロックを避ける）: 冪等キー → カート → 在庫の残高（品目 ID の昇順）→ 受け取り番号の採番。
-既にある注文を触る操作は、注文の行 → 確保 → 在庫の残高（品目 ID の昇順）。確定は、注文の行がまだ無いので、この 2 つの順は交わらない。
+既にある注文を触る操作は、注文の行 → 確保 → 在庫の残高（品目 ID の昇順）。期限切れの戻しは 1 注文ごとに別のトランザクション（ロックを持つ範囲を 1 注文に絞る）。確定は、注文の行がまだ無いので、この 2 つの順は交わらない。
 デッドロック（40P01）・直列化失敗（40001）は、確定だけ数回やり直す。ログには、住所・注文の中身・金額を出さない。
 """
 
+import functools
 import hashlib
 import logging
 import secrets
@@ -55,6 +56,9 @@ STAFF_ACTIONS: dict[str, tuple[str, str]] = {
 ALL_STATUSES = (
     "placed", "paid", "accepted", "preparing", "ready", "assigned", "picked_up", "delivering", "delivered", "delivery_failed", "completed", "cancelled",
 )
+
+# スタッフが一覧で指定できる状態（P1 の店頭）。placed（支払い前）は店が見ない。宅配の状態は P2 で足す。
+STAFF_VISIBLE_STATUSES = ("paid", "accepted", "preparing", "ready", "completed", "cancelled")
 
 _PUBLIC_ID_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # 紛らわしい I・O・0・1 を除く
 
@@ -215,20 +219,45 @@ def _cancel(conn: Connection, order: dict, *, actor_type: str, actor_id: str | N
 
 # ---- 期限切れの戻し（worker が 30 秒ごと。読み取り・確定・スタッフの一覧の前にも、遅延で呼ぶ） ----
 
-def expire_stale() -> int:
-    """placed のまま確保の期限を過ぎた注文を cancelled（payment_timeout・actor は system）にして確保を戻す。戻した件数を返す。"""
+def _expire_one(public_id: str) -> int:
+    """1 件を 1 つのトランザクションで戻す（件数 1 or 0）。ほかの操作と待ち合っても、ロックを持つ範囲は 1 注文だけ（デッドロックを避ける）。"""
     now = clock.utc_now()
-    count = 0
     with connection() as conn:
-        rows = conn.execute(
+        order = conn.execute(
             "SELECT o.id, o.public_id, o.user_id, o.store_id, o.status, o.total_lumi FROM orders o JOIN stock_reservations r ON r.order_id = o.id "
-            "WHERE o.status = 'placed' AND r.status = 'held' AND r.expires_at IS NOT NULL AND r.expires_at <= %s "
-            "ORDER BY r.expires_at LIMIT %s FOR UPDATE OF o SKIP LOCKED",
-            (now, limits.EXPIRE_BATCH),
-        ).fetchall()
-        for order in rows:
-            _cancel(conn, order, actor_type="system", actor_id=None, reason="payment_timeout", reservation_final="expired", now=now)
-            count += 1
+            "WHERE o.public_id = %s AND o.status = 'placed' AND r.status = 'held' AND r.expires_at IS NOT NULL AND r.expires_at <= %s "
+            "FOR UPDATE OF o SKIP LOCKED",
+            (public_id, now),
+        ).fetchone()
+        if order is None:
+            return 0  # 既に戻された・支払われた・ほかが処理中
+        _cancel(conn, order, actor_type="system", actor_id=None, reason="payment_timeout", reservation_final="expired", now=now)
+        return 1
+
+
+def expire_stale() -> int:
+    """placed のまま確保の期限を過ぎた注文を cancelled（payment_timeout・actor は system）にして確保を戻す。戻した件数を返す。
+
+    **1 注文ごとに別のトランザクション**で処理する（複数の注文の在庫の残高を 1 つのトランザクションで取ると、確定などとロックの順が逆になって
+    デッドロックしうる。2026-11-21 の読み取りレビューで再現）。呼び出し元（読み取り・確定・スタッフの一覧）を止めないよう、失敗は例外にせず、
+    種類だけをログに残す（次の巡回・次の呼び出しでやり直す）。
+    """
+    count = 0
+    try:
+        now = clock.utc_now()
+        with connection() as conn:
+            ids = [
+                r["public_id"]
+                for r in conn.execute(
+                    "SELECT o.public_id FROM orders o JOIN stock_reservations r ON r.order_id = o.id "
+                    "WHERE o.status = 'placed' AND r.status = 'held' AND r.expires_at IS NOT NULL AND r.expires_at <= %s ORDER BY r.expires_at LIMIT %s",
+                    (now, limits.EXPIRE_BATCH),
+                ).fetchall()
+            ]
+        for public_id in ids:
+            count += _with_retry(lambda pid=public_id: _expire_one(pid))
+    except Exception as exc:  # 本文（接続情報を含みうる）は出さず、種類だけ
+        log.error("期限切れの戻しに失敗しました（%s）", type(exc).__name__)
     if count:
         log.info("支払い期限切れの注文を %s 件、取り消して確保を戻しました", count)
     return count
@@ -245,6 +274,16 @@ def _with_retry(fn: Callable[[], T]) -> T:
                 raise
             time.sleep(0.05 * (attempt + 1))
     raise AssertionError("unreachable")
+
+
+def _retrying(fn: Callable[..., T]) -> Callable[..., T]:
+    """デッドロック（40P01）・直列化失敗（40001）を数回やり直す。fn は、自分で接続を開き、失敗したら全部巻き戻る操作（冪等に再実行できる）に限る。"""
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        return _with_retry(lambda: fn(*args, **kwargs))
+
+    return wrapper
 
 
 def place_order(customer_id: int, idempotency_key: str, proposal_id: uuid.UUID) -> tuple[dict, bool]:
@@ -271,6 +310,11 @@ def _place_order_once(customer_id: int, key: str, request_hash: str, proposal_id
             if not public_id:
                 raise ApiError(409, "idempotency_in_progress")
             return _one(conn, "o.user_id = %s AND o.public_id = %s", (customer_id, public_id), now), False
+
+        # 1b. 未払い（placed）の注文の上限。払わずに確定を繰り返して、店の在庫を押さえ続けることを防ぐ（2026-11-21 のレビュー）
+        unpaid = conn.execute("SELECT count(*) AS n FROM orders WHERE user_id = %s AND status = 'placed'", (customer_id,)).fetchone()["n"]
+        if unpaid >= limits.MAX_UNPAID_ORDERS:
+            raise ApiError(409, "too_many_unpaid_orders")
 
         # 2. 確定の許可証（版・期限・使用済み）
         cart = cart_service.get_cart(conn, customer_id, now, lock=True)
@@ -346,6 +390,7 @@ def _place_order_once(customer_id: int, key: str, request_hash: str, proposal_id
 
 # ---- 支払い・顧客の取消し ----
 
+@_retrying
 def pay(customer_id: int, public_id: str, simulate: str) -> dict:
     now = clock.utc_now()
     verdict: str | None = None
@@ -378,6 +423,7 @@ def pay(customer_id: int, public_id: str, simulate: str) -> dict:
     return result_order
 
 
+@_retrying
 def cancel_by_customer(customer_id: int, public_id: str) -> dict:
     now = clock.utc_now()
     with connection() as conn:
@@ -388,6 +434,7 @@ def cancel_by_customer(customer_id: int, public_id: str) -> dict:
 
 # ---- スタッフの状態遷移 ----
 
+@_retrying
 def staff_transition(staff_id: int, staff_store_id: int | None, public_id: str, action: str, reason: str | None) -> dict:
     now = clock.utc_now()
     reason = reason.strip() if reason else None

@@ -96,26 +96,41 @@ def test_staff_accounts_need_a_store_unless_manager(client, shop):
             conn.execute("INSERT INTO staff_accounts (store_id, role, name, email, password_hash) VALUES (NULL, 'staff', 'x', 'x@oasis-cafe.example', 'x')")
 
 
-def test_production_with_dev_auth_refuses_to_start(monkeypatch):
-    """(m) APP_ENV=production && AUTH_MODE=dev（未設定も dev）では、起動を拒否する。"""
+def test_dev_settings_are_allowed_only_in_an_explicit_dev_environment(monkeypatch):
+    """(m) 開発専用の設定（AUTH_MODE=dev）は、APP_ENV が development / test と明示されたときだけ。許可リスト: 未設定・表記の揺れ・未知の値は拒否する。"""
     from app.main import app
 
-    monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("AUTH_MODE", "dev")
-    with pytest.raises(RuntimeError, match="AUTH_MODE=dev"):
-        auth.check_startup()
+    for value in ("production", "Production", "PRODUCTION", " production ", "prod", "prd", "staging", "live", "dev-ish", ""):
+        monkeypatch.setenv("APP_ENV", value)
+        with pytest.raises(RuntimeError, match="AUTH_MODE=dev"):
+            auth.check_startup()
+    monkeypatch.delenv("APP_ENV")
+    with pytest.raises(RuntimeError):
+        auth.check_startup()  # 未設定は、開発とは見なさない（許可リスト）
+    monkeypatch.setenv("APP_ENV", "production")
     with pytest.raises(RuntimeError):
         with TestClient(app):
             pass  # lifespan が、DB に繋ぐ前に拒否する
-    monkeypatch.delenv("AUTH_MODE")
-    with pytest.raises(RuntimeError):
-        auth.check_startup()  # 未設定は既定の dev。本番で黙って通さない
+    for value in ("development", "test", " Development ", "TEST"):
+        monkeypatch.setenv("APP_ENV", value)
+        auth.check_startup()  # 正規化（前後の空白・大文字小文字）してから比べる
     monkeypatch.setenv("AUTH_MODE", "bogus")
     with pytest.raises(RuntimeError):
         auth.check_startup()
 
 
-def test_production_refuses_the_hours_check_off(monkeypatch):
+def test_startup_refuses_a_bad_utc_offset(monkeypatch):
+    """LOCAL_UTC_OFFSET_HOURS の不正な値は、最初のリクエストの 500 ではなく、起動で止める。"""
+    monkeypatch.setenv("LOCAL_UTC_OFFSET_HOURS", "abc")
+    with pytest.raises(RuntimeError):
+        auth.check_startup()
+    monkeypatch.setenv("LOCAL_UTC_OFFSET_HOURS", "99")
+    with pytest.raises(RuntimeError):
+        auth.check_startup()
+
+
+def test_non_dev_environment_refuses_the_hours_check_off(monkeypatch):
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("AUTH_MODE", "jwt")
     with pytest.raises(RuntimeError):  # jwt は未対応（P6）。許さない値は起動の設定ミス

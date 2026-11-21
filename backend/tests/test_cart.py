@@ -37,12 +37,13 @@ def test_cart_prices_come_from_the_current_menu_and_every_change_bumps_the_versi
     finally:
         with shop.db() as conn:
             conn.execute("UPDATE menu_variants SET price_lumi = 520 WHERE id = %s", (sandwich,))
-    # 絶対値指定。同じ値でも版は上がる。0 で外す
-    assert client.put(f"/api/cart/items/{sandwich}", json={"qty": 2}, headers=h).json()["version"] == v0 + 3
+    # 絶対値指定。**同じ値なら版は上がらない**（二重クリック・再送で、確定の許可証が無効にならない。2026-11-21 のレビュー）。0 で外す
+    assert client.put(f"/api/cart/items/{sandwich}", json={"qty": 2}, headers=h).json()["version"] == v0 + 2
     removed = client.put(f"/api/cart/items/{sandwich}", json={"qty": 0}, headers=h).json()
-    assert removed["lines"] == [] and removed["version"] == v0 + 4
+    assert removed["lines"] == [] and removed["version"] == v0 + 3
+    assert client.put(f"/api/cart/items/{sandwich}", json={"qty": 0}, headers=h).json()["version"] == v0 + 3  # 既に無い
     cleared = client.delete("/api/cart", headers=h).json()
-    assert cleared["lines"] == [] and cleared["version"] == v0 + 5
+    assert cleared["lines"] == [] and cleared["version"] == v0 + 4
 
 
 def test_cart_input_limits_and_errors(client, shop):
