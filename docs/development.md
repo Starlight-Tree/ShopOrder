@@ -41,7 +41,7 @@ docker compose run --rm --build migrate     # --build: マイグレーション�
 | `python -m app.seed_demo --reset` | 店・メニュー・在庫・注文・スタッフを消して入れ直す |
 | `python -m app.seed_demo --reset --history` | 上に加えて、過去 90 日のダミーの注文・在庫の台帳と、分析の日次集計を入れる。**店長の画面に過去の推移を出すには、これが要る**（`--reset` と一緒のときだけ） |
 
-`--reset` を付ける形を Compose から流すときは、`docker compose run --rm seed python -m app.seed_demo --reset --history` の形になる（`seed` サービスの `command` を上書きする）。**この形の実行は未確認**（流すと、開発 DB の注文が消える。先に上のバックアップを取る）。
+`--reset` を付ける形を Compose から流すときは、`docker compose run --rm seed python -m app.seed_demo --reset --history` の形になる（`seed` サービスの `command` を上書きする）。**流すと、開発 DB の注文が消える。先に上のバックアップを取る。** 2026-11-21 に実行して確かめた（店 12・メニュー 15・宅配の区画 4・配達員 8 に加え、注文 1,863 件・order_events 10,904 件・顧客 120 人が入った。所要は約 3 秒）。
 
 デモのスタッフ（各店 `staff-<店の code>@oasis-cafe.example`、店長 `manager@oasis-cafe.example`）のパスワードは、環境変数 `DEMO_STAFF_PASSWORD`（既定 `oasis-demo-pass`。ダミーで、秘密ではない）。Compose の `seed` はこの変数を渡さないので、変えるときは `docker compose run --rm -e DEMO_STAFF_PASSWORD=… seed` のように渡す。
 
