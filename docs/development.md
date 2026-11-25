@@ -6,7 +6,7 @@
 
 コードの変更・テスト・コミットは、開発コンテナ（`.devcontainer/`）のセッションで行う。ホストでやるのは、コンテナの作成・再ビルド・起動、`migrate`・`seed`・バックアップ・ログ、`git worktree`、`.devcontainer/` の編集。
 
-構成: Compose プロジェクト `shoporder` に、アプリの 4 サービス（db・api・worker・frontend）と、`dev`（開発コンテナ）・`test-db`（使い捨ての Postgres 17。tmpfs。外へ出られないネットワーク）が載る。Docker は、ホストのソケットを渡さず、専用のプロキシ（`shoporder-docker-proxy`。許可は 4 つのコンテナの start / stop / restart と、読み取りだけ）経由。名前は `shoporder-devcontainer`・`shoporder-test-db`・`shoporder-docker-proxy`、ボリュームは `shoporder-claude-config`・`shoporder-dev-venv`・`shoporder-dev-node-modules`・`shoporder-dev-next`。
+構成: Compose プロジェクト `shoporder` に、アプリの 4 サービス（db・api・worker・frontend）と、`dev`（開発コンテナ）・`test-db`（使い捨ての Postgres 17。tmpfs。外へ出られないネットワーク）が載る。Docker は、ホストのソケットを渡さず、専用のプロキシ（`shoporder-docker-proxy`。許可は 4 つのコンテナの start / stop / restart と、読み取りだけ）経由。名前は `shoporder-devcontainer`・`shoporder-test-db`・`shoporder-docker-proxy`、ボリュームは `shoporder-claude-config`・`shoporder-dev-node-modules`・`shoporder-dev-next`（Python 時代の `shoporder-dev-venv` は、Go への置き換えで使わなくなった）。
 
 **初回（ホスト → コンテナ）**
 
@@ -23,6 +23,7 @@
 **ホストで行う**
 
 - `docker compose run --rm migrate` / `seed`、`up --build`（プロキシがコンテナの作成を拒否する）。
+- **orphan の警告**: ホストで、ルートの `docker-compose.yml` だけを読む `docker compose up` などを流すと、`Found orphan containers (shoporder-devcontainer, shoporder-test-db)` と出る。`dev` と `test-db` は `.devcontainer/docker-compose.yml` の定義で、同じプロジェクト `shoporder` に属すため。**無害で、放置してよい。`--remove-orphans` は付けない**（開発コンテナと `test-db` が消える）。警告だけ消すなら、`COMPOSE_IGNORE_ORPHANS=true` を付けて流す（`.env` に足すなら、ユーザーが行う）。ソースで確認: 2026-11-26 に、`docker compose up -d db` で警告が出ること、この変数を付けると出ないことを実測した。
 - `docker exec` での `pg_dump`（上の「マイグレーション」）。`docker logs`（CLI は inspect を呼ぶので、プロキシが拒否する）。
 - `git worktree` の作成・削除。`.git` をホストと共有しているが、ワークツリーの登録は絶対パスを持つ。コンテナの中の `git worktree prune` は、ホストのワークツリーの登録を消す。
 - `.devcontainer/` の編集と、コンテナの再ビルド・再作成。
