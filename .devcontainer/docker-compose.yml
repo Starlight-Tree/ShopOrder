@@ -29,9 +29,8 @@ services:
       - ./.claude/settings.json:/workspaces/ShopOrder/.claude/settings.json:ro
       # このプロジェクト専用のボリューム。Claude Code の認証情報・履歴が、他のプロジェクトと混ざらない。
       - claude-config:/home/vscode/.claude
-      # 依存は、ホスト（macOS）のものと分ける。Linux 用のネイティブの依存・仮想環境をホストの作業ツリーに書かないため。
+      # 依存は、ホスト（macOS）のものと分ける。Linux 用のネイティブの依存をホストの作業ツリーに書かないため（Go のモジュールは、コンテナの中の GOPATH に入る）。
       # Compose の frontend サービス（/app/node_modules・/app/.next）とも別のボリューム。
-      - dev-venv:/workspaces/ShopOrder/backend/.venv
       - dev-node-modules:/workspaces/ShopOrder/frontend/node_modules
       - dev-next:/workspaces/ShopOrder/frontend/.next
     environment:
@@ -43,7 +42,7 @@ services:
       # バックエンドのテスト用。開発用の DB（db）ではなく、使い捨ての test-db を指す（テストは DROP DATABASE IF EXISTS → CREATE をする）。
       # dev は backend-net に繋がないので、開発用の DB には届かない。scripts/verify.sh は localhost 以外のホストを既定で拒否するため、
       # 許すホスト名（完全一致）として test-db だけを置く（1 のような「全部許す」値は効かない）。テスト側も、DB を消す前に
-      # backend/tests/guards.py が、ホスト（test-db・localhost のみ）と DB 名（shop_order_*）を完全一致で検査する。
+      # backend/guards.go が、ホスト（test-db・localhost のみ）と DB 名（shop_order_*）を完全一致で検査する。
       # dev に別のネットワークを足すときは、この前提を見直す。
       TEST_DATABASE_URL: postgresql://postgres@test-db:5432/postgres
       VERIFY_ALLOW_REMOTE_DB: "test-db"
@@ -92,9 +91,7 @@ volumes:
   claude-config:
     name: shoporder-claude-config
     external: true
-  # 依存のキャッシュ。無ければ Compose が作る。消えても、`pip install` と `npm ci` をやり直すだけ。
-  dev-venv:
-    name: shoporder-dev-venv
+  # 依存のキャッシュ。無ければ Compose が作る。消えても、`npm ci` をやり直すだけ。
   dev-node-modules:
     name: shoporder-dev-node-modules
   dev-next:

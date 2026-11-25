@@ -4,12 +4,12 @@
 #   scripts/verify.sh [backend|frontend|lint|all]...     （引数なし = all。複数指定できる）
 #
 # 段（CI のジョブとの対応）:
-#   backend   CI の backend ジョブ。pytest（`-q -rs`）と、スキップが 1 件でもあれば落とす検査
+#   backend   CI の backend ジョブ。gofmt・go vet・`go test -race -count=1 -v ./...` と、スキップが 1 件でもあれば落とす検査
 #   frontend  CI の frontend ジョブ。npm test → build → typecheck（この順。typecheck は build の後）
 #   lint      版の整合（scripts/check-versions.sh）と、docker-compose.yml の構文検査（.env は読まない）
 #
 # CI と違う点（合格しても「CI と同じ」とは言えない）:
-#   - 依存の導入（pip install・npm ci）と、backend イメージのビルドはしない。backend/.venv と frontend/node_modules は先に用意する
+#   - 依存の導入（npm ci）と、backend イメージのビルドはしない。Go（go.mod の版以上）と frontend/node_modules は先に用意する
 #     （ホストの node_modules は Linux 用のことがある。動かなければ、スクラッチのコピーで npm ci して流す）。
 #   - Postgres サーバーの版（CI は 17）は見ない。
 #   - actionlint・zizmor（ワークフローの検査）は、まだ入れていない。
@@ -18,7 +18,7 @@
 #   TEST_DATABASE_URL  backend に必須（使い捨ての Postgres 17。DROP DATABASE IF EXISTS → CREATE をするので、テスト用のサーバーに向ける）。
 #                      ホストが localhost / 127.0.0.1 / ::1 でなければ流さない。使い捨てのサーバーなら、
 #                      VERIFY_ALLOW_REMOTE_DB にそのホスト名を入れる（完全一致。開発コンテナは test-db。1 などの「全部許す」値は効かない）
-#   PYTHON             Python の実行ファイル（既定は backend/.venv/bin/python）
+#   GO                 go の実行ファイル（既定は PATH の go）
 #
 # 流せない段は「未実行」と出す。合格とは数えない。失敗しても残りの段は流し、最後にまとめて出す。
 # 終了コード: 0 = すべて実行して合格 / 1 = 失敗あり / 2 = 失敗は無いが未実行がある / 64 = 引数の誤り
@@ -48,20 +48,24 @@ record() { # 段の名前, 終了コード
 }
 
 if wants backend; then
-  py="${PYTHON:-backend/.venv/bin/python}"
+  go_bin="${GO:-go}"
   url="${TEST_DATABASE_URL:-}"
   host="$(printf '%s' "$url" | sed -E 's#^[a-z+]+://([^@/]*@)?(\[[^]]*\]|[^:/?]*).*#\2#')"
   if [[ -z "$url" ]]; then
     skipped+=("backend: TEST_DATABASE_URL が未設定")
-  elif [[ ! -x "$py" && ! -x "$root/$py" ]]; then
-    skipped+=("backend: $py が無い（backend/.venv を作る）")
+  elif ! command -v "$go_bin" >/dev/null 2>&1; then
+    skipped+=("backend: $go_bin が無い（Go を入れる。版は backend/go.mod）")
   elif [[ "$host" != localhost && "$host" != 127.0.0.1 && "$host" != "[::1]" && ( -z "$host" || "${VERIFY_ALLOW_REMOTE_DB:-}" != "$host" ) ]]; then
     skipped+=("backend: TEST_DATABASE_URL のホストが localhost ではない（テスト用のサーバー以外へは流さない。使い捨てなら VERIFY_ALLOW_REMOTE_DB にそのホスト名を入れる）")
   else
-    case "$py" in /*) abspy="$py" ;; *) abspy="$root/$py" ;; esac
-    ( cd backend && "$abspy" -m pytest -q -rs ) >"$log" 2>&1
+    (
+      cd backend
+      unformatted="$(gofmt -l .)"
+      if [[ -n "$unformatted" ]]; then printf 'gofmt で整えていないファイル:\n%s\n' "$unformatted"; exit 1; fi
+      "$go_bin" vet ./... && "$go_bin" test -race -count=1 -v ./...
+    ) >"$log" 2>&1
     code=$?
-    if [[ $code -eq 0 ]] && grep -qiE '(^|[^a-z])skipped' "$log"; then
+    if [[ $code -eq 0 ]] && grep -qE '^[[:space:]]*--- SKIP' "$log"; then
       printf 'スキップされたテストがある（DB の設定などを確かめる）\n' >>"$log"; code=1
     fi
     record backend "$code"

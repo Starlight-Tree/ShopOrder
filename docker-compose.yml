@@ -1,8 +1,8 @@
-# ShopOrder のローカル開発用（Postgres 17 + FastAPI + Next.js）。
+# ShopOrder のローカル開発用（Postgres 17 + Go の API + Next.js）。
 #   docker compose up -d --build    # 起動（マイグレーションもダミーデータも流さない）
 #   初めての環境は、先に README の「Quick start」の手順（db → migrate → seed）を実行する
 #   http://localhost:3400            # 画面
-#   http://localhost:8400/docs       # API の仕様（FastAPI の自動文書）
+#   http://localhost:8400/health     # API の死活確認（FastAPI の /docs は、Go への置き換えで無くなった。経路は docs/api.md）
 # 他のローカルのサービス（JobNavi 3200/8200、DocuNavi 3000）と同時に動かせるよう、ポートは 3400 / 8400 にしてある。変えない。
 name: shoporder
 
@@ -38,7 +38,7 @@ services:
     build: ./backend
     container_name: shoporder-migrate
     profiles: ["tools"]
-    command: ["python", "-m", "app.migrate"]
+    command: ["migrate"]
     environment:
       DATABASE_URL: &database_url "postgresql://shoporder:${LOCAL_DB_PASSWORD:-oasis-local}@db:5432/shoporder"
     depends_on:
@@ -56,7 +56,7 @@ services:
     labels:
       local.ui.group: "App-ShopOrder"
     profiles: ["tools"]
-    command: ["python", "-m", "app.seed_demo"]
+    command: ["seed"]
     environment:
       DATABASE_URL: *database_url
       DEMO_DATA: allow
@@ -73,7 +73,7 @@ services:
     # 表示用ラベル
     labels:
       local.ui.group: "App-ShopOrder"
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/code/app"]
+    # 引数なしは API の起動（イメージの ENTRYPOINT が /api）。コードを変えたら `docker compose up -d --build api`（Python のときの --reload は無い）
     environment:
       DATABASE_URL: *database_url
       CORS_ORIGINS: "http://localhost:3400"
@@ -90,8 +90,6 @@ services:
       AUTH_MODE: "dev"
       ORDER_HOURS_CHECK: "off"
       LOCAL_UTC_OFFSET_HOURS: "${LOCAL_UTC_OFFSET_HOURS:-9}"
-    volumes:
-      - ./backend/app:/code/app
     ports:
       - "127.0.0.1:8400:8000"
     depends_on:
@@ -101,14 +99,14 @@ services:
       - frontend-net
       - backend-net
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: ["CMD", "/api", "healthcheck"]
       interval: 5s
       timeout: 3s
       retries: 10
       start_period: 5s
     restart: unless-stopped
 
-  # worker: 30 秒ごとに、支払い期限を過ぎた注文を取り消して在庫の確保を戻す（api と同じイメージ。python -m app.worker）。
+  # worker: 30 秒ごとに、支払い期限を過ぎた注文を取り消して在庫の確保を戻す（api と同じイメージ。/api worker）。
   # API も読み取り・確定の前に同じ処理を遅延で呼ぶので、worker が止まっても在庫は固まらない。ポートは公開しない。
   worker:
     build: ./backend
@@ -116,13 +114,11 @@ services:
     # 表示用ラベル
     labels:
       local.ui.group: "App-ShopOrder"
-    command: ["python", "-m", "app.worker"]
+    command: ["worker"]
     environment:
       DATABASE_URL: *database_url
       PAYMENT_PROVIDER: "${PAYMENT_PROVIDER:-mock}"
       LOCAL_UTC_OFFSET_HOURS: "${LOCAL_UTC_OFFSET_HOURS:-9}"
-    volumes:
-      - ./backend/app:/code/app
     depends_on:
       db:
         condition: service_healthy

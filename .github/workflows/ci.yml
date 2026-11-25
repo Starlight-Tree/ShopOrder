@@ -2,7 +2,7 @@ name: CI
 
 # テストとビルドだけを行う。デプロイは含まない。外部の API（Gemini・決済など）は呼ばない。
 # アクションは、改ざんされたタグを掴まないよう、コミット SHA で固定している（JobNavi の ci.yml と同じ。コメントは対応するタグ）。
-# Python と Node の版は、.python-version と .node-version から読む（scripts/check-versions.sh が各ファイルとの整合を確かめる）。
+# Go の版は backend/go.mod、Node の版は .node-version から読む（scripts/check-versions.sh が各ファイルとの整合を確かめる）。
 on:
   push:
     branches: [main]
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend tests (Python, Postgres 17)
+    name: Backend tests (Go, Postgres 17)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # DB を使うテストのための、使い捨ての Postgres。テスト専用のダミーの認証情報で、秘密情報は入っていない。
@@ -35,7 +35,7 @@ jobs:
           --health-timeout 5s
           --health-retries 15
     env:
-      # backend/tests/conftest.py は、この URL で接続して、テスト用の DB を作り直す。無いと DB のテストは静かにスキップされる。
+      # backend/testutil_test.go は、この URL で接続して、テスト用の DB（shop_order_go_*）を作る。無いと DB のテストは静かにスキップされる。
       TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
     defaults:
       run:
@@ -44,24 +44,31 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false  # 後続のステップで git の認証は使わない
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
-          python-version-file: .python-version
-          cache: pip
-          cache-dependency-path: |
-            backend/requirements.txt
-            backend/requirements-dev.in
-      - name: Install dependencies
-        run: pip install -r requirements.txt -r requirements-dev.in
-      - name: Run pytest
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "gofmt で整えていないファイル:" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+      - name: go vet
+        run: go vet ./...
+      # 外部のサービスは呼ばない。旧 Python の API の応答（testdata/golden_api.json）を再生して比べる検査と、チャットの評価（eval_test.go）を含む。
+      - name: Run go test
         run: |
           set -o pipefail
-          python -m pytest -q -rs | tee pytest.log
+          go test -race -count=1 -v ./... | tee gotest.log
       # TEST_DATABASE_URL の綴りがずれると、テストはスキップされたまま green になる。スキップが 1 件でもあれば落とす。
       - name: No test may be skipped
         run: |
-          if grep -qiE '(^|[^a-z])skipped' pytest.log; then
-            echo "スキップされたテストがある。pytest.log の SKIPPED の行で理由を確かめる" >&2
+          if grep -qE '^[[:space:]]*--- SKIP' gotest.log; then
+            echo "スキップされたテストがある。gotest.log の SKIP の行で理由を確かめる（DB の設定など）" >&2
+            grep -E '^[[:space:]]*--- SKIP' gotest.log >&2
             exit 1
           fi
 
@@ -83,9 +90,14 @@ jobs:
           tags: shoporder-api:ci
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
-      # DB が無いと API は起動しない（接続プールを開くため）ので、起動はしない。固定した依存がイメージの中で読み込めることだけ確かめる。
-      - name: Import the app inside the image
-        run: docker run --rm shoporder-api:ci python -c "import app.main"
+      # DB が無いと API は起動しない（接続プールを開くため）ので、起動はしない。イメージの中のバイナリが動くこと（設定が無いと、固定の文で止まる）だけ確かめる。
+      - name: Run the binary inside the image
+        run: |
+          set +e
+          out="$(docker run --rm shoporder-api:ci migrate 2>&1)"
+          code=$?
+          echo "$out"
+          [ "$code" -eq 1 ] && grep -q 'DATABASE_URL が未設定です' <<<"$out"
       # docker-compose.yml の構文と、環境変数の既定値を確かめる（起動はしない。.env は不要）
       - name: Validate docker-compose.yml
         run: docker compose config --quiet
@@ -116,7 +128,7 @@ jobs:
       - name: Type-check
         run: npm run typecheck
 
-  # 実ブラウザー（Chromium）での通し（frontend/e2e/）。使い捨ての Postgres に、API（backend/tests/e2e_server.py。ダミーの履歴つき）と
+  # 実ブラウザー（Chromium）での通し（frontend/e2e/）。使い捨ての Postgres に、API（backend/ の `go run . e2e-server`。ダミーの履歴つき）と
   # 画面（next build → next start）を立てる。決済・配達・通知・チャットは模擬。外部の API は呼ばない。
   e2e:
     name: E2E (Playwright, Chromium)
@@ -135,21 +147,16 @@ jobs:
           --health-timeout 5s
           --health-retries 15
     env:
-      # tests/e2e_server.py が、この URL で接続して shop_order_e2e を作り直す（tests/guards.py が対象を検査する）
+      # e2e-server が、この URL で接続して shop_order_e2e を作り直す（backend/guards.go が対象を検査する）
       TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-      # playwright.config.ts の既定は開発コンテナの backend/.venv。CI は setup-python の python を使う
-      E2E_PYTHON: python
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
-          python-version-file: .python-version
-          cache: pip
-          cache-dependency-path: backend/requirements.txt
-      - name: Install backend dependencies
-        run: pip install -r backend/requirements.txt
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: .node-version
@@ -183,6 +190,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      # Python と Node の版が、Dockerfile・Compose・engines・CLAUDE.md・この CI で揃っているか
-      - name: Python and Node versions agree
+      # Go と Node の版が、Dockerfile・Compose・engines・CLAUDE.md・この CI で揃っているか
+      - name: Go and Node versions agree
         run: scripts/check-versions.sh

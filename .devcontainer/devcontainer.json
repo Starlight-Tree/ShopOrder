@@ -14,25 +14,25 @@
 	// initializeCommand: ホストで、コンテナの作成の前に実行される。専用ボリューム shoporder-claude-config（external。既にあれば何もしない）を作り、
 	// プロキシを起動し、ネットワーク shoporder-dev を作る。
 	"initializeCommand": "docker volume create shoporder-claude-config >/dev/null && docker compose -f .devcontainer/docker-proxy/compose.yml up -d",
-	// Node は .node-version、Python は .python-version と同じ。
+	// Node は .node-version、Go は backend/go.mod と同じ。Python は .claude/hooks（python3 で動くフック）のために残す。
 	"features": {
 		"ghcr.io/devcontainers/features/node:2": { "version": "24" },
-		"ghcr.io/devcontainers/features/python:1": { "version": "3.13" }
+		"ghcr.io/devcontainers/features/python:1": { "version": "3.13" },
+		"ghcr.io/devcontainers/features/go:1": { "version": "1.26.10" }
 	},
 	// 環境変数（DOCKER_HOST・TEST_DATABASE_URL など）は ./docker-compose.yml の dev の environment に置く
 	// （Compose ベースでは containerEnv が効かないため。ここには置かない）。
 	// 専用ボリュームは、新規作成直後は root 所有になりうるので、vscode が書けるようにする。
 	"postCreateCommand": {
 		"claude-volume": "sudo chown -R vscode:vscode /home/vscode/.claude",
-		"dependency-volumes": "sudo chown vscode:vscode /workspaces/ShopOrder/backend/.venv /workspaces/ShopOrder/frontend/node_modules /workspaces/ShopOrder/frontend/.next",
-		"tools": "for t in docker psql python node npm git; do command -v $t >/dev/null || echo missing: $t >&2; done; docker --version; docker compose version"
+		"dependency-volumes": "sudo chown vscode:vscode /workspaces/ShopOrder/frontend/node_modules /workspaces/ShopOrder/frontend/.next",
+		"tools": "for t in docker psql python3 go node npm git; do command -v $t >/dev/null || echo missing: $t >&2; done; docker --version; docker compose version"
 	},
 	"customizations": {
 		"vscode": {
 			"extensions": [
 				"anthropic.claude-code",
-				"ms-python.python",
-				"ms-python.vscode-pylance",
+				"golang.go",
 				"mhutchie.git-graph",
 				"ms-azuretools.vscode-containers",
 				"ms-ceintl.vscode-language-pack-ja"

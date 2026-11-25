@@ -1,5 +1,5 @@
 # 開発コンテナのイメージ。Docker の CLI と Compose（docker compose のプラグイン）、psql、curl・ca-certificates を足す。
-# Python と Node は devcontainer.json の features が入れる。git・sudo は、ベースのイメージにある。
+# Python・Node・Go は devcontainer.json の features が入れる。git・sudo は、ベースのイメージにある。
 # ログイン情報はイメージに含めない（Claude Code は専用の名前付きボリューム。.devcontainer/docker-compose.yml）。
 # Debian 13 のパッケージで、ソケットもデーモンも含まない。接続先は DOCKER_HOST（./docker-compose.yml）のプロキシだけ。
 # Docker-outside-of-Docker の feature は使わない（ホストのソケットを dev にマウントするため）。
