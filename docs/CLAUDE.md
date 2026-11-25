@@ -12,8 +12,9 @@
 | [chat.md](chat.md) | チャットの設計（ツール・安全・構成・評価）。確定は画面のボタンだけ |
 | [development.md](development.md) | 開発の手順（テスト・マイグレーション・ダミーデータの投入・名前の決まり・DB 改名の手順） |
 | [analytics.md](analytics.md) | 分析の作り方・画面・顧客データの作法・ダミーデータ |
-| [metrics.md](metrics.md) | 分析の指標の定義（メトリクス辞書）。閾値の数字は `backend/app/analytics_rules.py` の 1 か所 |
+| [metrics.md](metrics.md) | 分析の指標の定義（メトリクス辞書）。閾値の数字は `backend/analytics_rules.go` の 1 か所 |
 | [roadmap.md](roadmap.md) | 段階（P0〜P6）と状態 |
+| [go-migration.md](go-migration.md) | API を Python から Go に置き換えた記録（範囲・構成・確かめ方・意図して違う点・戻し方） |
 | [decisions/](decisions/README.md) | 決定（ADR）。1 件 1 ファイル。決定済みのものは書き換えず、新しい ADR で置き換える |
 
 ## 書き方

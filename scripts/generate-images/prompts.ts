@@ -1,5 +1,5 @@
 export type ImageSpec = {
-  id: string // メニューの code（backend/app/seed_demo.py の MENU）。保存名も同じ
+  id: string // メニューの code（backend/seed_data.go の seedMenu。もとは seed_demo.py の MENU）。保存名も同じ
   purpose: string
   prompt: string
   aspectRatio: '4:3'

@@ -11,13 +11,13 @@
               │  └ /api/chat（Route Handler。SSE を中継。Cookie → 短命 JWT）
               │  └ Better Auth（顧客の Google ログイン。Next.js の中で動く）
               ▼
-           FastAPI（API 8400）── Postgres 17（db。ホストへは出さない）
+           Go の API（8400）── Postgres 17（db。ホストへは出さない）
               ▲
            worker（同じイメージ。予約の期限切れ・模擬の配達進行・夜間の集計）
 ```
 
 - **API はサーバー側から呼ぶ**（JobNavi と同じ）。ブラウザは API を直接呼ばず、CORS に頼らない。チャットのストリームだけ、Route Handler が中継する。
-- **ロールは 2 系統。** 顧客は Better Auth（Google）→ 15 分の JWT → FastAPI が JWKS で検証。店のスタッフ（staff・courier・manager）は、FastAPI が発行する不透明トークン（`token_hash` だけ保存）を HttpOnly Cookie で持つ。アカウント・セッション・Cookie が別（JobNavi の求職者 / 園と同じ）。開発の既定は `AUTH_MODE=dev`（固定のダミー利用者で入る。本番相当の設定では起動を拒否）。
+- **ロールは 2 系統。** 顧客は Better Auth（Google）→ 15 分の JWT → API が JWKS で検証。店のスタッフ（staff・courier・manager）は、API が発行する不透明トークン（`token_hash` だけ保存）を HttpOnly Cookie で持つ。アカウント・セッション・Cookie が別（JobNavi の求職者 / 園と同じ）。開発の既定は `AUTH_MODE=dev`（固定のダミー利用者で入る。本番相当の設定では起動を拒否）。
 - **権限は API の 1 か所の関門で決める。** 利用者・店・ロールはセッションから取り、リクエストの値を信用しない。他人の注文・他店のデータは SQL の `WHERE` に所有者・店の条件を入れ、取得前に絞る（他は 404）。
 - **差し替え口（Protocol + 模擬 + 設定で選ぶ）:** `PaymentProvider`（模擬 / 実）、`DeliveryProvider`（自前 / 模擬の外部）、`Notifier`（アプリ内の通知欄 / Web Push / メール）、`ChatModel`（模擬 / Gemini）。JobNavi の `Storage` と同じ型。設定の値が不正なら起動を失敗させ、別の実装へ黙って落とさない。既定はすべて模擬。
 - **画面の更新:** MVP は短い間隔の再取得（ポーリング）。調理ボード・追跡画面で足りなくなったら、Postgres の `LISTEN/NOTIFY` と SSE にする（ADR で決める）。
@@ -27,15 +27,15 @@
 
 | 層 | 選ぶもの | 理由 |
 |---|---|---|
-| バックエンド | Python 3.13、FastAPI、psycopg3（生 SQL。ORM なし）、pydantic、argon2、PyJWT | JobNavi と同じ。SQL を読んで権限・ロックを確かめやすい |
+| バックエンド | Go 1.26（標準ライブラリ + pgx。生 SQL。ORM なし）、argon2 | JobNavi と同じ（2026-11 に Python から置き換えた。[go-migration.md](go-migration.md)）。SQL を読んで権限・ロックを確かめやすい |
 | DB | Postgres 17。拡張なし（pgvector・PostGIS は使わない） | JobNavi と同じ。地図は区画の表で足りる |
 | マイグレーション | JobNavi の実行器を写す（番号付き SQL・sha256・DROP 禁止・advisory lock）。**0001 から連番**（JobNavi の「既存の初期スキーマとの照合」は、既存の DB が無いので持ち込まない） | 流儀を揃える |
 | 画面 | Next.js 16（App Router）、React 19、TypeScript、Vitest | JobNavi・DocuNavi と同じ |
 | グラフ | shadcn/ui の Chart（Recharts v3）。ヒートマップとコホート表は HTML の `<table>` + CSS 変数の色 | SVG・CSS 変数でダークに対応。表は読み上げられる（調査: 公式の文書で確認、2026-11-21） |
 | チャットの画面 | `ai` + `@ai-sdk/react` の `useChat`（UI message stream） | DocuNavi と同じ |
 | チャットのバックエンド | LangGraph + `langchain-google-genai`。ガードは DocuNavi の `guardrails.py` を写す | 骨格が既にある。LLM は `ChatModel` の裏 |
-| テスト | pytest（使い捨て Postgres）、Vitest、Playwright（E2E。開発コンテナと CI で流す。[development.md](development.md)） | JobNavi と同じ |
-| 開発環境 | Docker Compose（db・api・frontend・worker。道具は `profile: tools`）、devcontainer、Node 24・Python 3.13 | JobNavi と同じ。ポートは 3400 / 8400 |
+| テスト | go test（使い捨て Postgres。旧 Python の応答の再生を含む）、Vitest、Playwright（E2E。開発コンテナと CI で流す。[development.md](development.md)） | JobNavi と同じ |
+| 開発環境 | Docker Compose（db・api・frontend・worker。道具は `profile: tools`）、devcontainer、Node 24・Go 1.26 | JobNavi と同じ。ポートは 3400 / 8400 |
 | CI | GitHub Actions（外部 API を呼ばない。デプロイを含まない） | JobNavi と同じ |
 | 秘密 | 環境変数。Git 管理外の `.env`。Infisical は本番を決めるときに決める | 開発は秘密が要らない（模擬） |
 
@@ -45,7 +45,7 @@
 
 | 元 | 写す先 | 変える点 |
 |---|---|---|
-| JobNavi `backend/app/migrate.py`・`migrations/` | `backend/app/migrate.py`（済み） | 初期スキーマの照合を除き、0001 から連番・ロックの鍵 |
+| JobNavi `backend/app/migrate.py`・`migrations/` | `backend/migrate.go`（済み） | 初期スキーマの照合を除き、0001 から連番・ロックの鍵 |
 | JobNavi `settings.py`・`storage.py` の型・`test_demo_guard.py` | `settings.py`・各 Provider | Provider の種類 |
 | JobNavi `auth.py`・`jwt_auth.py`・`garden.py` | `auth.py`・`staff.py` | ロール（staff / courier / manager）と店の条件 |
 | JobNavi `seed_demo.py` の作法（`demo_key`・`--reset`・`--extend`） | `seed_demo.py` | 12 店・メニュー・注文の履歴 |

@@ -1,4 +1,4 @@
-// API（backend/app/schemas.py）の応答の形
+// API（backend/models.go）の応答の形
 export type Store = {
   id: number;
   code: string;

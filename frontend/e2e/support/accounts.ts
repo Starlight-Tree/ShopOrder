@@ -1,6 +1,6 @@
 import { test, type Browser, type Page } from '@playwright/test';
 
-// seed のデモのアカウント（backend/app/seed_demo.py）。パスワードは backend/tests/e2e_server.py が渡す値と同じ（ダミー）
+// seed のデモのアカウント（backend/seed.go）。パスワードは backend/e2e_server.go が渡す値と同じ（ダミー）
 export const STAFF_PASSWORD = 'e2e-staff-pass';
 export const MAIN_STAFF_EMAIL = 'staff-residential-main@oasis-cafe.example';
 export const MANAGER_EMAIL = 'manager@oasis-cafe.example';

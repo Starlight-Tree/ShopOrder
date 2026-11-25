@@ -45,13 +45,13 @@
 ## 構成
 
 ```
-画面（useChat）─ /api/chat（Next の Route Handler。Cookie → 短命 JWT。画面は後）─ FastAPI /api/chat/threads/{id}/messages（SSE。UI message stream）
-                                                                   └ 素の Python のループ（backend/app/chat/agent.py）:
+画面（useChat）─ /api/chat（Next の Route Handler。Cookie → 短命 JWT。画面は後）─ Go の API /api/chat/threads/{id}/messages（SSE。UI message stream）
+                                                                   └ 素の Go のループ（backend/chat_agent.go）:
                                                                       入力ガード → get_cart（自動）→ ChatModel ⇄ ツール → 出力ガード → 保存
                                                                       ChatModel（模擬 / Gemini は P6）  ツール = 上の表（cart.py・orders.py と同じサービス関数）  DB = スレッド・発話・監査
 ```
 
-**LangGraph・langchain は使わない**（2026-11-21 の指示。ツールを呼ぶ会話のループは、素の Python で足りる。短い 1 ターンで終わるので、グラフの状態の保存・再開が要らない）。このため、[architecture.md](architecture.md) の「LangGraph + langchain-google-genai」の記述は、P6 で Gemini を入れるときに直す（未直し）。
+**LangGraph・langchain は使わない**（2026-11-21 の指示。ツールを呼ぶ会話のループは、素の Go で足りる。短い 1 ターンで終わるので、グラフの状態の保存・再開が要らない）。このため、[architecture.md](architecture.md) の「LangGraph + langchain-google-genai」の記述は、P6 で Gemini を入れるときに直す（未直し）。
 
 - DocuNavi の骨格を写す: 入出力ガード（NFKC 等で回避に耐える正規表現・漏洩の検査・`StreamingOutputGuard`）、`config["configurable"]` で利用者・店を渡す、固定の失敗文、切断を失敗にしないストリーム、10 秒の keepalive。
 - **書き込みの安全:** ツールは 1 回の DB トランザクションで完結し、取り消しから守る。`(thread_id, tool_call_id)` で冪等にし、ターンの先頭で `get_cart` を読み直させる。履歴に「結果の無いツール呼び出し」が残る場合は、DocuNavi と同じく外す（結果は捏造しない）。
@@ -81,7 +81,7 @@ AI 店員の名前・口調は資料に無い（新設）。来店客向けの�
 
 ## 状態（2026-11-21）
 
-**バックエンドと評価を実装した**（`backend/app/chat/`・`backend/app/routes/chat.py`・マイグレーション `0007_chat.sql`・`evals/`）。画面（useChat・カードの描画）は、顧客の画面の担当が終わってから別に作る。API の形は [api.md](api.md)「チャット（P3）」、評価の流し方と限界は [evals/README.md](../evals/README.md)。
+**バックエンドと評価を実装した**（`backend/chat_*.go`・`backend/routes_chat.go`・マイグレーション `0007_chat.sql`・評価は `backend/eval_test.go`）。画面（useChat・カードの描画）は、顧客の画面の担当が終わってから別に作る。API の形は [api.md](api.md)「チャット（P3）」、評価の流し方と限界は [evals/README.md](../evals/README.md)。
 
 **作ったもの**
 

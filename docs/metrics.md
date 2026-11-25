@@ -1,6 +1,6 @@
 # メトリクス辞書（分析の指標の定義）
 
-指標の定義を **1 か所**に書く。集計の SQL（[backend/app/analytics_build.py](../backend/app/analytics_build.py)・[analytics_queries.py](../backend/app/analytics_queries.py)）と画面の説明文は、ここを参照する。数字の閾値は [analytics_rules.py](../backend/app/analytics_rules.py) の 1 か所にあり、変えるときは、そこと この文書を一緒に直す。
+指標の定義を **1 か所**に書く。集計の SQL（[backend/analytics_build.go](../backend/analytics_build.go)・[analytics_queries.go](../backend/analytics_queries.go)）と画面の説明文は、ここを参照する。数字の閾値は [analytics_rules.go](../backend/analytics_rules.go) の 1 か所にあり、変えるときは、そこと この文書を一緒に直す。
 作り方・画面・顧客データの作法は [analytics.md](analytics.md)、表は [data-model.md](data-model.md)、API は [api.md](api.md)「分析（P4）」。
 
 **範囲（2026-11-21）:** 店頭受け取り（P1）の注文だけ。宅配（P2）の指標（受け取り方法の比率・所要時間・不在率）は、P2 の後。通貨はルミ（整数。world.md）。データはすべてダミー。

@@ -4,7 +4,7 @@
 
 [English](README.md) | 日本語
 
-架空の惑星ザーハードのアルカ市に 12 店舗を持つカフェチェーン「オアシス珈琲」の、注文と宅配のアプリです（FastAPI、Next.js、Postgres 17、Docker Compose）。お客様は画面で注文し、店は調理ボードと在庫を使い、店長は分析を見ます。店・人・通貨「ルミ」・データはすべて架空で、支払いは模擬です。店頭受け取りと宅配は画面があります。チャットでの注文は、今のところバックエンドだけです。
+架空の惑星ザーハードのアルカ市に 12 店舗を持つカフェチェーン「オアシス珈琲」の、注文と宅配のアプリです（Go、Next.js、Postgres 17、Docker Compose）。お客様は画面で注文し、店は調理ボードと在庫を使い、店長は分析を見ます。店・人・通貨「ルミ」・データはすべて架空で、支払いは模擬です。店頭受け取りと宅配は画面があります。チャットでの注文は、今のところバックエンドだけです。
 
 | お客様（店頭受け取り） | 店のスタッフ |
 |---|---|
@@ -36,7 +36,7 @@
 ```mermaid
 flowchart LR
     B[ブラウザー] --> F["Next.js<br/>frontend（:3400）"]
-    F -->|"サーバー側から呼ぶ"| A["FastAPI<br/>backend（:8400）"]
+    F -->|"サーバー側から呼ぶ"| A["Go の API<br/>backend（:8400）"]
     A --> DB[("Postgres 17")]
     W["worker<br/>（API と同じイメージ）"] --> DB
 ```
@@ -54,18 +54,17 @@ docker compose run --rm --build seed    # ダミーの店・メニュー・在�
 docker compose up -d --build
 ```
 
-- 画面: <http://localhost:3400>、API の文書: <http://localhost:8400/docs>（JobNavi・DocuNavi と同時に動かせるポート）
+- 画面: <http://localhost:3400>、API の死活確認: <http://localhost:8400/health>（JobNavi・DocuNavi と同時に動かせるポート）
 - 止める: `docker compose down`。DB ごと消すなら `-v` を付けます。
 - デモのアカウント（ローカル専用。すべてダミー）: 店のスタッフ `staff-residential-main@oasis-cafe.example` は <http://localhost:3400/staff/login>、店長 `manager@oasis-cafe.example` は <http://localhost:3400/manager/login>。既定のパスワードは `oasis-demo-pass`。お客様は、開発ではログイン不要です。
 - 店長の画面に過去の売上を出すには、ダミーの履歴を入れます。デモのデータは入れ直しになります（[docs/development.md](docs/development.md)）。
 
 ## テスト
 
-バックエンドには、使い捨ての Postgres 17 が要ります。`TEST_DATABASE_URL` の指すサーバーで、テスト用の DB を作り直す（`DROP DATABASE IF EXISTS` → `CREATE`）ためです。無いと、DB を使うテストは飛ばされます。開発コンテナ（`.devcontainer/`）なら用意済みです（[docs/development.md](docs/development.md)）。
+バックエンド（Go）のテストには、使い捨ての Postgres 17 が要ります。`TEST_DATABASE_URL` の指すサーバーで、テスト用の DB を作り直す（`DROP DATABASE IF EXISTS` → `CREATE`）ためです。無いと、DB を使うテストは飛ばされます。開発コンテナ（`.devcontainer/`）なら用意済みです（[docs/development.md](docs/development.md)）。
 
 ```bash
-(cd backend && python3.13 -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.in \
-  && TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:55432/postgres .venv/bin/python -m pytest -q -rs)
+(cd backend && TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:55432/postgres go test -race -count=1 ./...)
 (cd frontend && npm ci && npm test && npm run build && npm run typecheck)
 ```
 

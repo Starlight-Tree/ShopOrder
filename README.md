@@ -4,7 +4,7 @@
 
 English | [日本語](README.ja.md)
 
-A fictional ordering and delivery app for "Oasis Coffee" (オアシス珈琲), a 12-store café chain on the planet Zahard (FastAPI, Next.js, Postgres 17, Docker Compose). Customers order on screen, stores run a prep board and stock, managers read analytics. Stores, people, the currency "lumi" and all data are made up, and payment is a mock. Store pickup and delivery have screens; chat ordering is backend-only so far.
+A fictional ordering and delivery app for "Oasis Coffee" (オアシス珈琲), a 12-store café chain on the planet Zahard (Go, Next.js, Postgres 17, Docker Compose). Customers order on screen, stores run a prep board and stock, managers read analytics. Stores, people, the currency "lumi" and all data are made up, and payment is a mock. Store pickup and delivery have screens; chat ordering is backend-only so far.
 
 | Customer (store pickup) | Store staff |
 |---|---|
@@ -36,7 +36,7 @@ Managers use a separate console with its own login. Its numbers come from 90 day
 ```mermaid
 flowchart LR
     B[Browser] --> F["Next.js<br/>frontend (:3400)"]
-    F -->|"called from the server side"| A["FastAPI<br/>backend (:8400)"]
+    F -->|"called from the server side"| A["Go API<br/>backend (:8400)"]
     A --> DB[("Postgres 17")]
     W["worker<br/>(same image as the API)"] --> DB
 ```
@@ -61,11 +61,10 @@ docker compose up -d --build
 
 ## Tests
 
-The backend tests need a throwaway Postgres 17: `TEST_DATABASE_URL` points at a server where the test database is dropped and recreated. Without it, the DB tests are skipped. A dev container (`.devcontainer/`) sets this up; see [docs/development.md](docs/development.md).
+The backend tests (Go) need a throwaway Postgres 17: `TEST_DATABASE_URL` points at a server where the test database is dropped and recreated. Without it, the DB tests are skipped. A dev container (`.devcontainer/`) sets this up; see [docs/development.md](docs/development.md).
 
 ```bash
-(cd backend && python3.13 -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.in \
-  && TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:55432/postgres .venv/bin/python -m pytest -q -rs)
+(cd backend && TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:55432/postgres go test -race -count=1 ./...)
 (cd frontend && npm ci && npm test && npm run build && npm run typecheck)
 ```
 

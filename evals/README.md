@@ -2,31 +2,32 @@
 
 チャット（P3）の評価。**実 API を使わない・決定的**なものだけを、ここに置く（模擬モデル `CHAT_MODEL=mock` と、台本どおりに答える偽のモデル）。設計は [docs/chat.md](../docs/chat.md)「評価」。DocuNavi の評価の規律（条件を固定してから測る・規則ベースの評価器・実 API の評価は承認制）を写した。
 
-## 流し方
+## 流し方（Go のテスト。2026-11-26 に Python から移した）
 
+評価は、API を通す点で、アプリの Go のテスト（`backend/`）の一部になった。`backend/eval_test.go` に、golden set・評価器・安全の評価が入っている。
 使い捨ての Postgres 17 を起動して、管理用の URL を `TEST_DATABASE_URL` に渡す（`backend/` のテストと同じ。無いと、DB の評価はスキップされる）。
 
 ```bash
 docker run -d --name shoporder-pg-eval -p 127.0.0.1:55499:5432 -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17   # ポートは空いているもの
-cd backend && python3.13 -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.in   # 初回だけ（新しい依存は無い）
-cd ../evals && TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:55499/postgres ../backend/.venv/bin/python -m pytest -q
+cd backend && TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:55499/postgres go test -run 'TestEval|TestEvaluators' -count=1 ./...
 docker stop shoporder-pg-eval   # 終わったら止める
 ```
 
-`evals/pytest.ini` が `backend/`（`app`・`tests` の道具）を読む。評価は、専用の DB（`shop_order_eval`）を作り直して、API（FastAPI の TestClient）を本番と同じ経路（SSE）で呼ぶ。**CI にはまだ組み込んでいない**（`ci.yml` は、この担当の範囲外。足すなら、backend のジョブの後に `cd evals && python -m pytest -q` の 1 段）。
+評価は、テストごとに、テンプレートの DB（マイグレーション + seed）を複製した DB を作り、同じプロセスの中で API（`httptest`）を本番と同じ経路（SSE）で呼ぶ。**CI の backend ジョブに含まれる**（`go test ./...` に入っているため）。
+旧 Python の評価（`evals/chat/*.py`）は、Python の `app` を直接 import していたので、API の置き換えと一緒に Go に写した（2026-11-26。Python の版は Git の履歴にある）。
 
 ## 中身
 
-| ファイル | 役割 |
+| 場所（`backend/eval_test.go`） | 役割 |
 |---|---|
-| `chat/cases.py` | **golden set**（25 件、`g01`〜`g25`）: 発話 → 期待するツールの列・最終のカート・必ず含む語・含んではいけない語・カードの種類。商品の特定・あいまい解決（「ブレンド」）・必須オプションの聞き返し（サイズ・温度）・在庫切れの代案・営業時間外・MO 不可店・アレルギー・「いつもの」・やっぱりやめる・状況・宅配（準備中）・数量の上限・確認カード・確認カードの後の「はい」 |
-| `chat/evaluators.py` | 規則ベースの評価器。ガード（`backend/app/chat/guardrails.py`）とは**別に書いた**（ガードが壊れても、評価が同じ誤りを見逃さないように） |
-| `chat/harness.py` | 会話を流して、記録（Trace: 本文・カード・ツールの列・DB の監査・最終のカート・注文の数）を作る。準備（過去の注文・売り切れ・営業時間外）もここ |
-| `chat/test_golden.py` | golden set を流す。**全ターンに、安全の評価器（価格・確定の言い切り・アレルギー・書き込みの上限）も当てる** |
-| `chat/test_safety.py` | 安全の評価（下） |
-| `chat/test_evaluators.py` | 評価器の自己検査（悪い記録を、評価器が見逃さないこと。DB なし） |
+| `evalCases`（`g01`〜`g25`） | **golden set**（25 件）: 発話 → 期待するツールの列・最終のカート・必ず含む語・含んではいけない語・カードの種類。商品の特定・あいまい解決（「ブレンド」）・必須オプションの聞き返し（サイズ・温度）・在庫切れの代案・営業時間外・MO 不可店・アレルギー・「いつもの」・やっぱりやめる・状況・宅配（準備中）・数量の上限・確認カード・確認カードの後の「はい」 |
+| 評価器（`toolsExist` など） | 規則ベースの評価器。ガード（`backend/chat_guardrails.go`）とは**別に書いた**（ガードが壊れても、評価が同じ誤りを見逃さないように） |
+| `buildTrace`・`runConversation`・`applySetup` | 会話を流して、記録（本文・カード・ツールの列・DB の監査・最終のカート・注文の数）を作る。準備（過去の注文・売り切れ・営業時間外）もここ |
+| `TestEvalGoldenSet` | golden set を流す。**全ターンに、安全の評価器（価格・確定の言い切り・アレルギー・書き込みの上限）も当てる** |
+| `TestEval…`（安全） | 安全の評価（下） |
+| `TestEvaluatorsCatchBadTraces` | 評価器の自己検査（悪い記録を、評価器が見逃さないこと。DB なし） |
 
-### 評価器（`evaluators.py`）
+### 評価器
 
 | 評価器 | 見るもの |
 |---|---|
@@ -41,7 +42,7 @@ docker stop shoporder-pg-eval   # 終わったら止める
 | `write_budget` | 1 ターンの実行された書き込みが 3 回まで、ツール呼び出しが 12 回まで |
 | `trajectory` / `final_cart` / `cards_are` / `includes` / `excludes` | golden の期待（ツールの列・最終のカート・カードの種類・語） |
 
-### 安全の評価（`test_safety.py`）
+### 安全の評価
 
 | 観点 | 方法 |
 |---|---|
@@ -56,7 +57,7 @@ docker stop shoporder-pg-eval   # 終わったら止める
 ## 限界（模擬モデルでの評価は、これだけのことしか言えない）
 
 - **模擬モデルは、規則で動く道具で、実モデルの代わりにならない。** この評価が示すのは、「ツール・ガード・上限・保存・配信の配線が、設計どおりに働く」ことと、「悪いモデルが来ても、モデルの外の層（定義に無いツールの拒否・出力ガード・入力ガード・データの伏せ）が働く」こと。**実モデルが、どれだけ確定を言いたがるか・指示に引きずられるか・正しいツールを選ぶか・聞き返すべきところで聞き返すかは、測れていない。**
-- 模擬モデルが解釈できるのは、`mock_model.py` に書いた言い回しだけ（品名・サイズ・温度・数量・「いつもの」・確認・やめる・状況・アレルギー・宅配・メニューの質問）。golden set は、その範囲で作ったので、**言い回しの幅（敬語・方言・誤字・長い文）への強さは測れない。**
+- 模擬モデルが解釈できるのは、`backend/chat_mock.go` に書いた言い回しだけ（品名・サイズ・温度・数量・「いつもの」・確認・やめる・状況・アレルギー・宅配・メニューの質問）。golden set は、その範囲で作ったので、**言い回しの幅（敬語・方言・誤字・長い文）への強さは測れない。**
 - 偽のモデルの試験は、**こちらが想定した攻撃**だけ。想定外の言い回しの確定の言い切り（ガードの正規表現を避ける文）は、見つけられない。ガードは「典型的な手口を安く弾く」層で、守りの本体は、確定のツールを渡さないこと。
 - アレルギーは、**データにある内容を答えているか**までを見る。データそのもの（`menu_items.allergens`）が正しいかは、見ない（ダミーデータ。実店舗にするときに再確認）。
 - 速度・費用・429 の出方・トークン数は、模擬では意味が無いので、測らない。

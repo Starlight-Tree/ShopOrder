@@ -1,6 +1,6 @@
 # API の約束（P1: 店頭受け取りの注文）
 
-画面とバックエンドの境目。実装は `backend/app/`、画面は `frontend/`。動きの決まりは [order-flow.md](order-flow.md)、表は [data-model.md](data-model.md)。宅配（P2）・チャット（P3）・分析（P4）は、この約束を足していく。
+画面とバックエンドの境目。実装は `backend/`（Go。経路は `routes*.go`）、画面は `frontend/`。動きの決まりは [order-flow.md](order-flow.md)、表は [data-model.md](data-model.md)。宅配（P2）・チャット（P3）・分析（P4）は、この約束を足していく。
 
 ## 共通
 
@@ -86,7 +86,7 @@
 
 ## 状態（2026-11-21）
 
-**バックエンドは、この契約の全エンドポイントを実装した**（`backend/app/routes/`。画面は別。段階の状態は [roadmap.md](roadmap.md)）。契約を変えた点・足した点は次のとおり（フロントエンドの `contract.ts` に合わせる場合は、ここを見る）。
+**バックエンドは、この契約の全エンドポイントを実装した**（`backend/routes*.go`。画面は別。段階の状態は [roadmap.md](roadmap.md)）。契約を変えた点・足した点は次のとおり（フロントエンドの `contract.ts` に合わせる場合は、ここを見る）。
 
 **足した点（既存の項目は変えていない）**
 - `GET /api/stores` の `accepting_orders` / `closed_reason`、`GET /api/menu` の `available` / `unavailable_reason` は、**いつも返す**（`store_id` が無い `/api/menu` でも、季節・時間帯の判定は返す。在庫は `store_id` があるときだけ）。存在しない `store_id` は 404 `store_not_found`。
@@ -111,7 +111,7 @@
 - 区画（zone）= エリア（居住区・発着場・岩山・遺跡）。住所の `area_code` から決まる。店が届けるのは、**自分のエリア + 隣接 1 エリア**（新設。順は居住区—発着場—岩山—遺跡。隣は「順の次」で、最後の遺跡だけ手前の岩山）。
 - 宅配をしている店 = `store_zones` に行がある店。配達員がいない店は、宅配をしない（seed の既定は下の「状態」）。
 - 時刻は UTC（`Z`）。日付（`date`）・枠の日付は店のローカル時刻（`LOCAL_UTC_OFFSET_HOURS`）。
-- 設計の既定の数字は `backend/app/delivery_rules.py`（枠 30 分・1 枠 4 件・受付の締め = 枠の開始の 45 分前〔準備 15 分 + リードタイム 30 分。新設〕・暗証コード 4 桁・5 回・24 時間・枠は 7 日先まで）。
+- 設計の既定の数字は `backend/deliveryrules.go`（枠 30 分・1 枠 4 件・受付の締め = 枠の開始の 45 分前〔準備 15 分 + リードタイム 30 分。新設〕・暗証コード 4 桁・5 回・24 時間・枠は 7 日先まで）。
 
 ### 新しいエラーコード（本文は固定の文）
 
@@ -128,7 +128,7 @@
 | `no_slot_available` | 409 | 再配達で選べる枠が無い |
 | `courier_off_duty` / `no_courier_available` | 409 | 勤務中でない配達員 / 提案できる配達員がいない |
 | `mock_only` | 409 | 模擬の配達（`DELIVERY_PROVIDER=mock`）のときだけ使える操作 |
-| `pin_invalid` | 422 | 暗証コードが違う（`attempts_left`）。形（4 桁の数字）の誤りは、FastAPI 既定の 422（数えない） |
+| `pin_invalid` | 422 | 暗証コードが違う（`attempts_left`）。形（4 桁の数字）の誤りは、FastAPI 互換の 422（数えない） |
 | `pin_locked` | 409 | 5 回間違えた。配達は止まり（`delivery_failed`）、店へ戻る |
 | `pin_expired` | 409 | 暗証コードの有効期限（集荷から 24 時間）が切れた |
 
@@ -292,11 +292,11 @@
 
 ### 状態（2026-11-21）
 
-バックエンド・画面とも実装した（店頭受け取りだけ。宅配の分析は P2 の後）。集計の作成は `python -m app.analytics_build`（[metrics.md](metrics.md)）。ダミーの履歴は `DEMO_DATA=allow python -m app.seed_demo --reset --history`。**この節のエンドポイントは、API の約束としては新設**（P1 の契約を変えていない）。
+バックエンド・画面とも実装した（店頭受け取りだけ。宅配の分析は P2 の後）。集計の作成は `api analytics-build`（[metrics.md](metrics.md)）。ダミーの履歴は `DEMO_DATA=allow api seed --reset --history`。**この節のエンドポイントは、API の約束としては新設**（P1 の契約を変えていない）。
 
 ## チャット（P3）
 
-設計は [chat.md](chat.md)、実装は `backend/app/chat/`・`backend/app/routes/chat.py`。**AI が作れるのは、カートの下書きと確認カードまで。注文の確定は、画面の確定ボタン → `POST /api/orders`（上の「注文」。`Idempotency-Key` つき）だけ**で、チャットのどの API・ツールからも通らない（[ADR 0003](decisions/0003-chat-never-confirms-orders.md)）。認証は顧客（`X-Dev-User`。上の「認証」）。画面のサーバー側（Route Handler）から呼び、ブラウザーは直接呼ばない。
+設計は [chat.md](chat.md)、実装は `backend/chat_*.go`・`backend/routes_chat.go`。**AI が作れるのは、カートの下書きと確認カードまで。注文の確定は、画面の確定ボタン → `POST /api/orders`（上の「注文」。`Idempotency-Key` つき）だけ**で、チャットのどの API・ツールからも通らない（[ADR 0003](decisions/0003-chat-never-confirms-orders.md)）。認証は顧客（`X-Dev-User`。上の「認証」）。画面のサーバー側（Route Handler）から呼び、ブラウザーは直接呼ばない。
 
 | API | 内容 |
 |---|---|
