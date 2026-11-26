@@ -23,7 +23,21 @@ const (
 	argonKeyLen    = 32
 	argonSaltLen   = 16
 	argonVersion   = 19
+
+	// argon2 の計算は 1 回で m（64 MiB）を確保し、Go は GC が OS に返すまで解放しない。同時に走る数を絞らないと、
+	// ログインが重なったときの常駐メモリが「同時数 × 64 MiB」まで跳ねる（2026-11-26 に実測。docs/go-migration.md）。
+	// 上限 4 なら、確保は最大 256 MiB。超えた分は、エラーにせず順番を待つ（応答の契約を変えない）。
+	argonMaxConcurrent = 4
 )
+
+var argonSlots = make(chan struct{}, argonMaxConcurrent)
+
+// withArgonSlot は、argon2 の計算を同時に argonMaxConcurrent 件までにして f を実行する。
+func withArgonSlot(f func()) {
+	argonSlots <- struct{}{}
+	defer func() { <-argonSlots }()
+	f()
+}
 
 var b64NoPad = base64.RawStdEncoding
 
@@ -45,7 +59,10 @@ func hashPassword(password string) string {
 	if _, err := rand.Read(salt); err != nil {
 		panic("乱数を読めません")
 	}
-	key := argon2.IDKey([]byte(password), salt, argonTime, argonMemoryKiB, argonThreads, argonKeyLen)
+	var key []byte
+	withArgonSlot(func() {
+		key = argon2.IDKey([]byte(password), salt, argonTime, argonMemoryKiB, argonThreads, argonKeyLen)
+	})
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s", argonVersion, argonMemoryKiB, argonTime, argonThreads, b64NoPad.EncodeToString(salt), b64NoPad.EncodeToString(key))
 }
 
@@ -112,9 +129,13 @@ func verifyPassword(stored, password string) bool {
 	var key []byte
 	switch p.kind {
 	case "argon2id":
-		key = argon2.IDKey([]byte(password), p.salt, p.time, p.memory, uint8(p.threads), uint32(len(p.hash)))
+		withArgonSlot(func() {
+			key = argon2.IDKey([]byte(password), p.salt, p.time, p.memory, uint8(p.threads), uint32(len(p.hash)))
+		})
 	case "argon2i":
-		key = argon2.Key([]byte(password), p.salt, p.time, p.memory, uint8(p.threads), uint32(len(p.hash)))
+		withArgonSlot(func() {
+			key = argon2.Key([]byte(password), p.salt, p.time, p.memory, uint8(p.threads), uint32(len(p.hash)))
+		})
 	default:
 		return false
 	}
